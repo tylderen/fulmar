@@ -1,0 +1,6 @@
+six
+redis
+tornado
+pycurl
+pyyaml
+msgpack-python
