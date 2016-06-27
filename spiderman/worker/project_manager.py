@@ -6,7 +6,6 @@ import linecache
 import logging
 import time
 import traceback
-
 import six
 
 from spiderman.log import SaveLogHandler, LogFormatter
@@ -22,9 +21,9 @@ class ProjectManager(object):
     def build_module(project, env={}):
         '''Build project script as module'''
         from spiderman import base_handler
-        assert 'name' in project, 'need name of project'
+        assert 'project_name' in project, 'need name of project'
         assert 'script' in project, 'need script of project'
-        assert 'id' in project, 'need id of project'
+        assert 'project_id' in project, 'need id of project'
 
         env = dict(env)
         env.update({
@@ -32,12 +31,14 @@ class ProjectManager(object):
         })
 
         loader = ProjectLoader(project)
-        module = loader.load_module(project['name'])
+        module = loader.load_module(project['project_name'])
 
         # logger inject
         module.log_buffer = []
-        module.logging = module.logger = logging.Logger(project['name'])
-        if env.get('enable_stdout_capture', True):
+        module.logging = module.logger = logging.Logger(project['project_name'])
+
+        if env.get('enable_stdout_capture', False):
+            logger.info(env)
             handler = SaveLogHandler(module.log_buffer)
             handler.setFormatter(LogFormatter(color=False))
         else:
@@ -56,8 +57,10 @@ class ProjectManager(object):
 
         instance = _class()
         instance.__env__ = env
-        instance.project_name = project['name']
+        instance.project_name = project['project_name']
+        instance.project_id = project['project_id']
         instance.project = project
+        logger.debug(module.logger.name)
 
         return {
             'loader': loader,
@@ -78,7 +81,7 @@ class ProjectManager(object):
         '''Check if project_name need update'''
         if project_name not in self.projects:
             return True
-        elif project_id and project_id != self.projects[project_name]['id']:
+        elif project_id and project_id != self.projects[project_name]['info']['project_id']:
             return True
         return False
 
@@ -93,9 +96,9 @@ class ProjectManager(object):
         '''Load project into self.projects from project info dict'''
         try:
             ret = self.build_module(project, self.env)
-            self.projects[project['name']] = ret
+            self.projects[project['project_name']] = ret
         except Exception as e:
-            logger.exception("load project %s error", project.get('name', None))
+            logger.exception("load project %s error", project.get('project_name', None))
             ret = {
                 'loader': None,
                 'module': None,
@@ -106,9 +109,9 @@ class ProjectManager(object):
                 'info': project,
                 'load_time': time.time(),
             }
-            self.projects[project['name']] = ret
+            self.projects[project['project_name']] = ret
             return False
-        logger.debug('project: %s updated.', project.get('name', None))
+        logger.debug('project: %s updated.', project.get('project_name', None))
         return True
 
     def get(self, project_name, project_id):
@@ -123,7 +126,7 @@ class ProjectLoader(object):
 
     def __init__(self, project, mod=None):
         self.project = project
-        self.name = project['name']
+        self.name = project['project_name']
         self.mod = mod
 
     def load_module(self, fullname):

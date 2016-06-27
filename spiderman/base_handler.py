@@ -4,6 +4,7 @@ import sys
 import inspect
 import functools
 import fractions
+import logging
 
 import six
 from six import add_metaclass, iteritems
@@ -16,6 +17,7 @@ from spiderman.utils import ListO, get_project
 from spiderman.worker.response import rebuild_response
 from spiderman.pprint import pprint
 from spiderman.message_queue import ready_queue, newtask_queue
+
 
 def catch_status_code_error(func):
     """
@@ -128,9 +130,8 @@ class BaseHandler(object):
         Running callback function with requested number of arguments
         """
         args, varargs, keywords, defaults = inspect.getargspec(function)
-        print 'run_func'
-        print function
-        print arguments
+        #logger.info(arguments)
+
         return function(*arguments[:len(args) - 1])
 
     def _run_task(self, task, response):
@@ -144,12 +145,13 @@ class BaseHandler(object):
             raise NotImplementedError("self.%s() not implemented!" % callback)
 
         function = getattr(self, callback)
+        #logger.info(function)
         # do not run_func when 304
         if response.status_code == 304 and not getattr(function, '_catch_status_code_error', False):
             return None
         if not getattr(function, '_catch_status_code_error', False):
             response.raise_for_status()
-        return self._run_func(function, response, task)
+        return self._run_func(function, response)
 
     def run_task(self, module, task, response):
         """
@@ -161,7 +163,6 @@ class BaseHandler(object):
         stdout = sys.stdout
         self.task = task
         self.response = response
-        print ('run_task: ', task, response)
         try:
             #if self.__env__.get('enable_stdout_capture', False):
             #    sys.stdout = ListO(module.log_buffer)
@@ -173,20 +174,19 @@ class BaseHandler(object):
             else:
                 self._run_func(self.on_result, result, response, task)
         except Exception as e:
-            print e
             logger.exception(e)
             exception = e
         finally:
             follows = self._follows
-            logs = list(module.log_buffer)
+            #logs = list(module.log_buffer)
 
             sys.stdout = stdout
             self.task = None
             self.response = None
             self.save = None
 
-        module.log_buffer[:] = []
-        return (result, follows, logs, exception)
+        #module.log_buffer[:] = []
+        return (result, follows,  exception)
 
     def _crawl(self, url, **kwargs):
         """
@@ -215,7 +215,7 @@ class BaseHandler(object):
             kwargs.setdefault('method', 'POST')
 
         schedule = {}
-        for key in ('priority', 'retries', 'satrt_time', 'age', 'rate'):
+        for key in ('priority', 'retries', 'start_time', 'age', 'rate'):
             if key in kwargs:
                 schedule[key] = kwargs.pop(key)
         task['schedule'] = schedule
@@ -249,7 +249,7 @@ class BaseHandler(object):
                 process[key] = kwargs.pop(key)
         task['process'] = process
 
-        task['project'] = self.project_name
+        task['project_name'] = self.project_name
         task['project_id'] = self.project_id
         task['url'] = url
         if 'taskid' in kwargs:
@@ -260,12 +260,7 @@ class BaseHandler(object):
         if kwargs:
             raise TypeError('crawl() got unexpected keyword argument: %s' % kwargs.keys())
 
-        if 'project_name' not in kwargs:
-            project_name, file_md5 = get_project()
-            task['project_name'] = project_name
-            task['project_id'] = file_md5
-
-        print ('_crawl: task---', task)
+        #logger.info('in_crawl: task %s ' % str(task))
 
         self.newtask_queue.push(task)
 
@@ -315,11 +310,9 @@ class BaseHandler(object):
 
           callback
 
-          project_name
-
           full documents: http://pyspider.readthedocs.org/en/latest/apis/self.crawl/
         '''
-        print ('crawl:', url)
+
         if isinstance(url, six.string_types) and url.startswith('curl '):
             curl_kwargs = curl_to_arguments(url)
             url = curl_kwargs.pop('urls')
@@ -351,6 +344,7 @@ class BaseHandler(object):
             pprint(result)
         if self.__env__.get('result_queue'):
             self.__env__['result_queue'].put((self.task, result))
+        #logger.info(result)
 
     def _on_cronjob(self, response, task):
         if (not response.save

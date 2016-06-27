@@ -131,7 +131,7 @@ def update_project(ctx, project_file):
 
     project_id = md5string(raw_code)
     project_name = project_file.split('/')[-1].strip(' .py')
-    data = {'name': project_name, 'script': raw_code, 'id': project_id}
+    data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id}
     projectdb.set(project_name, data)
 
 
@@ -153,8 +153,8 @@ def start_project(ctx, project):
     logging.info(project_data)
 
     newtask = {
-        "project": project_name,
-        'project_id': project_data.get('id'),
+        "project_name": project_name,
+        'project_id': project_data.get('project_id'),
         "taskid": project + 'on_start',
         "url": 'first_task' + project,
         "process": {

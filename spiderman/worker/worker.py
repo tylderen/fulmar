@@ -67,6 +67,7 @@ class Worker(object):
             self.http_client = tornado.httpclient.HTTPClient(MyCurlAsyncHTTPClient, max_clients=self.poolsize)
 
     def fetch(self, task):
+        logger.info('fetch task: %s', str(task))
         callback = task.get('process', {}).get('callback')
         if callback is None:
             raise Exception('No callback found !')
@@ -93,7 +94,7 @@ class Worker(object):
                     result = yield self.http_fetch(url, task)
             except Exception as e:
                 logger.exception(e)
-
+        logger.info('fetch result: %s' % str(result))
         self.processor.handle_result(task, result)
         raise gen.Return(result)
 
@@ -271,6 +272,7 @@ class Worker(object):
             result['status_code'] = response.code
             result['url'] = response.effective_url or url
             result['cookies'] = session.get_dict()
+            logger.info('result cookie: %s' % str(result['cookies']))
             result['time_cost'] = time.time() - start_time
 
             if response.error:
@@ -373,7 +375,7 @@ class Worker(object):
         return result
 
     def run(self):
-        '''Run loop'''
+        '''Run ioloop'''
         logger.info("worker starting...")
 
         def queue_loop():
@@ -388,9 +390,8 @@ class Worker(object):
                     #task = {'url': 'https://www.baidu.com/', 'callback': '123'}
                     # task in dict
                     # task = unpack(task)
-                    result = self.fetch(task)
-                    self._quit = True
-                except queue.Empty:
+                    if task:
+                        result = self.fetch(task)
                     break
                 except KeyboardInterrupt:
                     break

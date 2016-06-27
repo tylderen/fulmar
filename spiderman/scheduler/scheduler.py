@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger('scheduler')
 
+
 class Scheduler(object):
     def __init__(self, newtask_queue, ready_queue):
         self._quit = False
@@ -16,8 +17,10 @@ class Scheduler(object):
             try:
                 task = self.newtask_queue.pop()
                 if task is not None:
+                    logger.info('Ready task: %s' % str(task))
                     self.ready_queue.push(task)
                 else:
-                    time.sleep(2)
+                    logger.info('No ready task.')
+                    time.sleep(0.2)
             except Exception as e:
                 logger.error(str(e))

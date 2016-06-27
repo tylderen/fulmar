@@ -92,4 +92,6 @@ class SpidermanReadyQueue(QueueBase):
         results, count = pipe.execute()
         if results:
             return self._unpack(results[0])
+        else:
+            return None
 

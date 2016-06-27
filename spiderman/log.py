@@ -14,7 +14,7 @@ class LogFormatter(_LogFormatter, object):
     """Init tornado.log.LogFormatter from logging.config.fileConfig"""
     def __init__(self, fmt=None, datefmt=None, color=True, *args, **kwargs):
         if fmt is None:
-            fmt = '%(color)s[%(levelname)s %(asctime)s %(module)s:%(lineno)d]%(end_color)s %(message)s'
+            fmt = '%(color)s[%(levelname)s %(asctime)s %(name)s:%(lineno)d]%(end_color)s %(message)s'
         if datefmt is None:
             datefmt = '%Y-%m-%d %H:%M:%S'
         super(LogFormatter, self).__init__(color=color, fmt=fmt, datefmt=datefmt, *args, **kwargs)

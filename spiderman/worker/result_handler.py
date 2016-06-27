@@ -1,8 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import time
-
-logger = logging.getLogger("processor")
+logger = logging.getLogger(__name__)
 
 from .response import rebuild_response
 from .project_manager import ProjectManager
@@ -25,24 +24,19 @@ class Processor(object):
         response = rebuild_response(result)
         try:
             assert 'taskid' in task, 'need taskid in task'
-            print ('handle_result start ---', task)
-            project_name = task['project']
+            project_name = task['project_name']
             project_id = task['project_id']
-            print ('handle result: ', project_id)
+
             project_data = self.project_manager.get(project_name, project_id)
-            assert project_data, "no such project!"
+            assert project_data, "No such project!"
 
             if project_data.get('exception'):
-                print (project_data.get('exception_log'))
                 logger.error(project_data.get('exception_log'))
             else:
-                print ('handle result: get project_data, start run_task!!!---')
+                logger.info('Sccceed in getting project data')
                 ret = project_data['instance'].run_task(
                     project_data['module'], task, response)
         except Exception as e:
             logger.exception(e)
-            '''
-            logstr = traceback.format_exc()
-            ret = ProcessorResult(logs=(logstr, ), exception=e)
-            '''
         process_time = time.time() - start_time
+        logger.info('Process time cost: %s' % str(process_time))
