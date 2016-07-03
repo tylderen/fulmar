@@ -18,7 +18,7 @@ try:
 except ImportError:
     get_encodings_from_content = None
 from requests import HTTPError
-from spiderman import utils
+from fulmar import utils
 
 
 class Response(object):

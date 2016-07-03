@@ -9,15 +9,16 @@ import logging
 import six
 from six import add_metaclass, iteritems
 
-from spiderman.url import (
+from fulmar.url import (
     quote_chinese, _build_url, _encode_params,
     _encode_multipart_formdata, curl_to_arguments)
-from spiderman.util import md5string
-from spiderman.utils import ListO, get_project
-from spiderman.worker.response import rebuild_response
-from spiderman.pprint import pprint
-from spiderman.message_queue import ready_queue, newtask_queue
+from fulmar.util import md5string
+from fulmar.utils import ListO, get_project
+from fulmar.worker.response import rebuild_response
+from fulmar.pprint import pprint
+from fulmar.message_queue import ready_queue, newtask_queue
 
+logger = logging.getLogger(__name__)
 
 def catch_status_code_error(func):
     """
@@ -117,6 +118,7 @@ class BaseHandler(object):
     retry_delay = {}
 
     def __init__(self):
+        self.curr_conn_cookie = {}
         self.newtask_queue = newtask_queue
 
     def _reset(self):
@@ -130,7 +132,8 @@ class BaseHandler(object):
         Running callback function with requested number of arguments
         """
         args, varargs, keywords, defaults = inspect.getargspec(function)
-        #logger.info(arguments)
+        logger.error(function)
+        logger.error(arguments)
 
         return function(*arguments[:len(args) - 1])
 
@@ -163,6 +166,7 @@ class BaseHandler(object):
         stdout = sys.stdout
         self.task = task
         self.response = response
+        self.curr_conn_cookie = response.cookies
         try:
             #if self.__env__.get('enable_stdout_capture', False):
             #    sys.stdout = ListO(module.log_buffer)
@@ -221,13 +225,14 @@ class BaseHandler(object):
         task['schedule'] = schedule
 
         fetch = {}
+
         for key in (
                 'method',
                 'headers',
                 'data',
                 'timeout',
-                'allow_redirects',
                 'cookies',
+                'allow_redirects',
                 'proxy',
                 'js_run_at',
                 'js_script',
@@ -235,12 +240,17 @@ class BaseHandler(object):
                 'js_viewport_height',
                 'load_images',
                 'fetch_type',
-                'use_gzip',
                 'validate_cert',
                 'max_redirects',
         ):
             if key in kwargs:
                 fetch[key] = kwargs.pop(key)
+
+        if kwargs.get('cookie_persistence', True) != False:
+            if fetch.get('cookies'):
+                fetch['cookies'] = fetch['cookies'].update(self.curr_conn_cookie)
+            else:
+                fetch['cookies'] = self.curr_conn_cookie
         task['fetch'] = fetch
 
         process = {}
@@ -281,7 +291,35 @@ class BaseHandler(object):
     # apis
     def crawl(self, url, **kwargs):
         '''
+        params=None,
+
+        method=None,
+        data=None,
+        headers=None,
+        cookies=None,
+        cookie_persistence=True,
+        timeout=None,
+        allow_redirects=True,
+        proxies=None,
+
+        fetch_type=None,
+        js_run_at=None,
+        js_script=None,
+        js_viewport_width=None,
+        js_viewport_height=None,
+        load_images=None,
+
+        priority=None,
+        retries=None,
+        exetime=None,
+        age=None,
+
+        taskid=None,
+
+        callback=None):
+        ----------------------
         available params:
+
           url
           params
 
@@ -292,7 +330,9 @@ class BaseHandler(object):
           timeout
           allow_redirects
           cookies
+          cookie_persistence
           proxy
+
           # js fetch
           fetch_type
           js_run_at
@@ -312,12 +352,6 @@ class BaseHandler(object):
 
           full documents: http://pyspider.readthedocs.org/en/latest/apis/self.crawl/
         '''
-
-        if isinstance(url, six.string_types) and url.startswith('curl '):
-            curl_kwargs = curl_to_arguments(url)
-            url = curl_kwargs.pop('urls')
-            for k, v in iteritems(curl_kwargs):
-                kwargs.setdefault(k, v)
 
         if isinstance(url, six.string_types):
             return self._crawl(url, **kwargs)

@@ -42,7 +42,7 @@ class QueueBase(object):
         """Clear queue/stack"""
         self.server.delete(self.key)
 
-class SpidermanQueue(QueueBase):
+class fulmarQueue(QueueBase):
     """FIFO queue"""
 
     def __len__(self):
@@ -65,7 +65,7 @@ class SpidermanQueue(QueueBase):
             return self._unpack(data)
 
 
-class SpidermanReadyQueue(QueueBase):
+class fulmarReadyQueue(QueueBase):
     """Priority queue abstraction using redis' sorted set"""
     def __len__(self):
         """Return the length of the queue"""
@@ -74,8 +74,6 @@ class SpidermanReadyQueue(QueueBase):
     def push(self, task):
         """Push a task"""
         priority = task.get('priority', 2)
-        print task
-        print priority
         data = self._pack(task)
         pairs = {data: priority}
         self.server.zadd(self.key, **pairs)

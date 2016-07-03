@@ -9,7 +9,7 @@ class Projectdb(object):
         """
         Parameters:
             server -- redis connection
-            projectdb -- spiderman projectdb name
+            projectdb -- fulmar projectdb name
             project -- project name for this queue (e.g. "%(spider)s:queue")
         """
         self.server = server
@@ -36,4 +36,4 @@ class Projectdb(object):
     def delete(self, project_name):
         self.server.hdel(self.projectdb, project_name)
 
-projectdb = Projectdb(redis, 'spiderman_projectdb')
+projectdb = Projectdb(redis, 'fulmar_projectdb')

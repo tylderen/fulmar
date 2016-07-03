@@ -20,7 +20,7 @@ class Scheduler(object):
                     logger.info('Ready task: %s' % str(task))
                     self.ready_queue.push(task)
                 else:
-                    logger.info('No ready task.')
+                    # logger.info('No ready task.')
                     time.sleep(0.2)
             except Exception as e:
                 logger.error(str(e))

@@ -15,7 +15,6 @@ import tornado.httputil
 import tornado.ioloop
 
 from requests import cookies
-from six.moves import queue, http_cookies
 from six.moves.urllib.parse import urljoin, urlsplit
 from tornado import gen
 
@@ -58,7 +57,7 @@ class Worker(object):
         self._quit = False
 
         if not user_agent:
-            self.user_agent = "spiderman/%s" % 'spiderman.__version__'
+            self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
         # binding io_loop to http_client here
         if self.async:
@@ -76,7 +75,9 @@ class Worker(object):
             result = self.async_fetch(task)
         else:
             result = self.async_fetch(task, callback).result()
+
             self.processor.handle_result(task, result)
+
         return result
 
 

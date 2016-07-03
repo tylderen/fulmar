@@ -8,9 +8,9 @@ import time
 import traceback
 import six
 
-from spiderman.log import SaveLogHandler, LogFormatter
+from fulmar.log import SaveLogHandler, LogFormatter
 
-logger = logging.getLogger("processor")
+logger = logging.getLogger(__name__)
 
 
 class ProjectManager(object):
@@ -20,7 +20,7 @@ class ProjectManager(object):
     @staticmethod
     def build_module(project, env={}):
         '''Build project script as module'''
-        from spiderman import base_handler
+        from fulmar import base_handler
         assert 'project_name' in project, 'need name of project'
         assert 'script' in project, 'need script of project'
         assert 'project_id' in project, 'need id of project'
@@ -32,18 +32,18 @@ class ProjectManager(object):
 
         loader = ProjectLoader(project)
         module = loader.load_module(project['project_name'])
-
         # logger inject
         module.log_buffer = []
         module.logging = module.logger = logging.Logger(project['project_name'])
-
+        '''
         if env.get('enable_stdout_capture', False):
             logger.info(env)
             handler = SaveLogHandler(module.log_buffer)
             handler.setFormatter(LogFormatter(color=False))
         else:
-            handler = logging.StreamHandler()
-            handler.setFormatter(LogFormatter(color=True))
+        '''
+        handler = logging.StreamHandler()
+        handler.setFormatter(LogFormatter(color=True))
         module.logger.addHandler(handler)
 
         if '__handler_cls__' not in module.__dict__:
@@ -60,7 +60,6 @@ class ProjectManager(object):
         instance.project_name = project['project_name']
         instance.project_id = project['project_id']
         instance.project = project
-        logger.debug(module.logger.name)
 
         return {
             'loader': loader,

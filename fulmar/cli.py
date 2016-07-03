@@ -11,9 +11,9 @@ import logging
 import logging.config
 
 import click
-import spiderman
+import fulmar
 
-from spiderman import utils
+from fulmar import utils
 
 
 def connect_redis(ctx, param, value):
@@ -30,7 +30,7 @@ def load_cls(ctx, param, value):
               help="redis address", show_default=True)
 @click.option('--logging-config', default=os.path.join(os.path.dirname(__file__), "logging.conf"),
               help="logging config file for built-in python logging module", show_default=True)
-@click.version_option(version=spiderman.__version__, prog_name=spiderman.__name__)
+@click.version_option(version=fulmar.__version__, prog_name=fulmar.__name__)
 @click.pass_context
 def cli(ctx, **kwargs):
     """
@@ -66,15 +66,15 @@ def cli(ctx, **kwargs):
 @click.option('--proxy', help="proxy host:port")
 @click.option('--user-agent', help='user agent')
 @click.option('--timeout', help='default fetch timeout')
-@click.option('--worker-cls', default='spiderman.worker.Worker', callback=load_cls)
+@click.option('--worker-cls', default='fulmar.worker.Worker', callback=load_cls)
 @click.pass_context
 def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
     """
     Run Worker.
     """
     g = ctx.obj
-    from spiderman.message_queue import newtask_queue, ready_queue
-    from spiderman.scheduler.projectdb import projectdb
+    from fulmar.message_queue import newtask_queue, ready_queue
+    from fulmar.scheduler.projectdb import projectdb
     Worker = load_cls(None, None, worker_cls)
 
     worker = Worker(ready_queue, newtask_queue, projectdb,
@@ -83,15 +83,15 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 
 
 @cli.command()
-@click.option('--scheduler-cls', default='spiderman.scheduler.Scheduler', callback=load_cls)
+@click.option('--scheduler-cls', default='fulmar.scheduler.Scheduler', callback=load_cls)
 @click.pass_context
 def scheduler(ctx, scheduler_cls):
     """
     Run Scheduler.
     """
     g = ctx.obj
-    from spiderman.message_queue import newtask_queue, ready_queue
-    from spiderman.scheduler.projectdb import projectdb
+    from fulmar.message_queue import newtask_queue, ready_queue
+    from fulmar.scheduler.projectdb import projectdb
     Scheduler = load_cls(None, None, scheduler_cls)
 
     scheduler = Scheduler(newtask_queue, ready_queue)
@@ -121,8 +121,8 @@ def update_project(ctx, project_file):
     """
     Update a project
     """
-    from spiderman.scheduler.projectdb import projectdb
-    from spiderman.util import md5string
+    from fulmar.scheduler.projectdb import projectdb
+    from fulmar.util import md5string
     # todo: add default dir to put project
     raw_code = ''
     with open(project_file, 'rb') as f:
@@ -142,8 +142,8 @@ def start_project(ctx, project):
     """
     Start a project
     """
-    from spiderman.message_queue import newtask_queue, ready_queue
-    from spiderman.scheduler.projectdb import projectdb
+    from fulmar.message_queue import newtask_queue, ready_queue
+    from fulmar.scheduler.projectdb import projectdb
     project_name = project.split('/')[-1].strip(' .py')
     project_data = projectdb.get(project_name)
     if not project_data:
@@ -155,7 +155,7 @@ def start_project(ctx, project):
     newtask = {
         "project_name": project_name,
         'project_id': project_data.get('project_id'),
-        "taskid": project + 'on_start',
+        "taskid": project_name + 'on_start',
         "url": 'first_task' + project,
         "process": {
             "callback": "on_start",

@@ -36,7 +36,7 @@ with open('requirements.txt') as f:
 
 
 setup(
-    name='spiderman',
+    name='fulmar',
     version='0.0.1',
     author='russell.guo',
     packages=find_packages(exclude=['tests']),
@@ -49,7 +49,7 @@ setup(
     cmdclass={'test': PyTest},
     entry_points={
         'console_scripts': [
-            'spiderman = spiderman.cli:main',
+            'fulmar = fulmar.cli:main',
         ],
     },
 )
