@@ -132,9 +132,6 @@ class BaseHandler(object):
         Running callback function with requested number of arguments
         """
         args, varargs, keywords, defaults = inspect.getargspec(function)
-        logger.error(function)
-        logger.error(arguments)
-
         return function(*arguments[:len(args) - 1])
 
     def _run_task(self, task, response):
@@ -144,6 +141,9 @@ class BaseHandler(object):
         """
         process = task.get('process', {})
         callback = process.get('callback', '__call__')
+        callback_args = process.get('callback_args', [])
+        callback_kwargs = process.get('callback_kwargs', {})
+
         if not hasattr(self, callback):
             raise NotImplementedError("self.%s() not implemented!" % callback)
 
@@ -154,7 +154,10 @@ class BaseHandler(object):
             return None
         if not getattr(function, '_catch_status_code_error', False):
             response.raise_for_status()
-        return self._run_func(function, response)
+
+        if function.__name__ == 'on_start':
+            return function(*callback_args, **callback_kwargs)
+        return function(response, *callback_args, **callback_kwargs)
 
     def run_task(self, module, task, response):
         """
@@ -254,7 +257,7 @@ class BaseHandler(object):
         task['fetch'] = fetch
 
         process = {}
-        for key in ('callback', ):
+        for key in ('callback', 'callback_args', 'callback_kwargs'):
             if key in kwargs:
                 process[key] = kwargs.pop(key)
         task['process'] = process
@@ -316,7 +319,9 @@ class BaseHandler(object):
 
         taskid=None,
 
-        callback=None):
+        callback=None,
+        callback_args=[],
+        callback_kwargs={}):
         ----------------------
         available params:
 
