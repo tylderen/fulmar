@@ -54,7 +54,22 @@ def cli(ctx, **kwargs):
              redis_conn = utils.connect_redis(config['redis']['url'])
         else:
             raise Exception('redis in config.yaml wrong!')
+    LUA_RATE_LIMIT_SCRIPT = """
+    local current_requests = redis.call('get', KEYS[1])
+    if not current_requests then
+        redis.call('incr', KEYS[1])
+        redis.call('expire', KEYS[1], ARGV[1])
+        return 0
+    end
+    if tonumber(current_requests) >= tonumber(ARGV[2]) then
+        return 1
+    end
+    redis.call('incr', KEYS[1])
+    return 0
+    """
+    lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
     setattr(utils, 'redis', redis_conn)
+    setattr(utils, 'lua_rate_limit',lua_rate_limit)
 
     ctx.obj = utils.ObjectDict(ctx.obj or {})
     ctx.obj.update(config)
