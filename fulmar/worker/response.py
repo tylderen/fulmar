@@ -1,18 +1,13 @@
-#!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-# vim: set et sw=4 ts=4 sts=4 ff=unix fenc=utf8:
-# Author: Binux<i@binux.me>
-#         http://binux.me
-# Created on 2012-11-02 11:16:02
 
 import six
 import json
 import chardet
 import lxml.html
 import lxml.etree
-from pyquery import PyQuery
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
+
 try:
     from requests.utils import get_encodings_from_content
 except ImportError:
@@ -134,6 +129,13 @@ class Response(object):
         return content
 
     @property
+    def page_lxml(self):
+        try:
+            return lxml.html.fromstring(self.text)
+        except Exception as e:
+            raise e
+
+    @property
     def json(self):
         """Returns the json-encoded content of the response, if any."""
         if hasattr(self, '_json'):
@@ -143,32 +145,6 @@ class Response(object):
         except ValueError:
             self._json = None
         return self._json
-
-    @property
-    def doc(self):
-        """Returns a PyQuery object of the response's content"""
-        if hasattr(self, '_doc'):
-            return self._doc
-        elements = self.etree
-        doc = self._doc = PyQuery(elements)
-        doc.make_links_absolute(self.url)
-        return doc
-
-    @property
-    def etree(self):
-        """Returns a lxml object of the response's content that can be selected by xpath"""
-        if not hasattr(self, '_elements'):
-            try:
-                parser = lxml.html.HTMLParser(encoding=self.encoding)
-                self._elements = lxml.html.fromstring(self.content, parser=parser)
-            except LookupError:
-                # lxml would raise LookupError when encoding not supported
-                # try fromstring without encoding instead.
-                # on windows, unicode is not availabe as encoding for lxml
-                self._elements = lxml.html.fromstring(self.content)
-        if isinstance(self._elements, lxml.etree._ElementTree):
-            self._elements = self._elements.getroot()
-        return self._elements
 
     def raise_for_status(self, allow_redirects=True):
         """Raises stored :class:`HTTPError` or :class:`URLError`, if one occurred."""
