@@ -19,22 +19,12 @@ from six.moves.urllib.parse import urljoin, urlsplit
 from tornado import gen
 
 from ..utils import unicode_text
-
 from .http_utils import extract_cookies_to_jar
 from .http_utils import MyCurlAsyncHTTPClient
 from .result_handler import Processor
 
 logger = logging.getLogger('worker')
 
-
-fetcher_output = {
-    "status_code": int,
-    "orig_url": str,
-    "url": str,
-    "headers": dict,
-    "content": str,
-    "cookies": dict,
-}
 
 class Worker(object):
     default_options = {
@@ -140,14 +130,9 @@ class Worker(object):
     allowed_options = ['method', 'data', 'timeout', 'cookies', 'validate_cert']
 
     def pack_tornado_request_parameters(self, url, task):
-        # default optionstyl
-
         fetch = copy.deepcopy(self.default_options)
         fetch['url'] = url
-
-        # only init {}
         fetch['headers'] = tornado.httputil.HTTPHeaders(fetch['headers'])
-
         fetch['headers']['User-Agent'] = task.get('user_agent') or self.user_agent
 
         task_fetch = task.get('fetch', {})
@@ -191,7 +176,6 @@ class Worker(object):
             del fetch['data']
 
         return fetch
-
 
     @gen.coroutine
     def http_fetch(self, url, task):
