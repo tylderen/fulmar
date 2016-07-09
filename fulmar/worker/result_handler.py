@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
-import logging
 import time
-logger = logging.getLogger(__name__)
-
+import logging
 from .response import rebuild_response
 from .project_manager import ProjectManager
+
+logger = logging.getLogger(__name__)
 
 
 class Processor(object):
@@ -19,9 +19,10 @@ class Processor(object):
         ))
 
     def handle_result(self, task, result):
-        '''Deal one result'''
+        '''Deal one response result'''
         start_time = time.time()
         response = rebuild_response(result)
+        follows = []
         try:
             assert 'taskid' in task, 'need taskid in task'
             project_name = task['project_name']
@@ -36,7 +37,11 @@ class Processor(object):
                 logger.info('Sccceed in getting project data')
                 ret = project_data['instance'].run_task(
                     project_data['module'], task, response)
+                follows = ret[1]
+                logger.error(follows)
         except Exception as e:
             logger.exception(e)
+
         process_time = time.time() - start_time
         logger.info('Process time cost: %s' % str(process_time))
+        return follows
