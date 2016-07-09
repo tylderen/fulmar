@@ -17,13 +17,23 @@ import tornado.ioloop
 from requests import cookies
 from six.moves.urllib.parse import urljoin, urlsplit
 from tornado import gen
+from concurrent.futures import ThreadPoolExecutor
 
-from ..utils import unicode_text
+from ..message_queue import newtask_queue
+from ..utils import unicode_text, lua_rate_limit
+
 from .http_utils import extract_cookies_to_jar
 from .http_utils import MyCurlAsyncHTTPClient
 from .result_handler import Processor
 
 logger = logging.getLogger('worker')
+executor = ThreadPoolExecutor(max_workers=5)
+
+
+def push_job(queue=newtask_queue, executor=executor, tasks=None):
+    def push_job(queue, *tasks):
+        queue.push(*tasks)
+    executor.submit(push_job, queue, *tasks)
 
 
 class Worker(object):
@@ -34,7 +44,8 @@ class Worker(object):
     }
     phantomjs_proxy = None
 
-    def __init__(self, readytask_queue, newtask_queue, projectdb, poolsize=200, timeout=None,
+    def __init__(self, readytask_queue, newtask_queue,
+                 projectdb, poolsize=200, timeout=None,
                  proxy=None, async=True, user_agent=None):
         self.readytask_queue = readytask_queue
         self.processor = Processor(newtask_queue, projectdb)
@@ -49,7 +60,7 @@ class Worker(object):
         if not user_agent:
             self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
-        # binding io_loop to http_client here
+        # Bind io_loop to http_client
         if self.async:
             self.http_client = MyCurlAsyncHTTPClient(max_clients=self.poolsize, io_loop=self.ioloop)
         else:
@@ -65,15 +76,11 @@ class Worker(object):
             result = self.async_fetch(task)
         else:
             result = self.async_fetch(task, callback).result()
-
-            self.processor.handle_result(task, result)
-
         return result
-
 
     @gen.coroutine
     def async_fetch(self, task):
-        '''Do one fetch'''
+        '''Async fetch'''
         url = task.get('url')
         if url.startswith('first_task'):
             result = yield gen.maybe_future(self.data_fetch(url, task))
@@ -85,8 +92,11 @@ class Worker(object):
                     result = yield self.http_fetch(url, task)
             except Exception as e:
                 logger.exception(e)
-        logger.info('fetch result: %s' % str(result))
-        self.processor.handle_result(task, result)
+        # logger.info('fetch result: %s' % str(result))
+        fellow_tasks = self.processor.handle_result(task, result)
+        logger.error(fellow_tasks)
+        if fellow_tasks:
+            push_job(tasks=fellow_tasks)
         raise gen.Return(result)
 
     def sync_fetch(self, task):
@@ -124,7 +134,6 @@ class Worker(object):
         logger.error("[%d] %s:%s %s, %r %.2fs",
                      result['status_code'], task.get('project'), task.get('taskid'),
                      url, error, result['time'])
-        self.on_result(type, task, result)
         return result
 
     allowed_options = ['method', 'data', 'timeout', 'cookies', 'validate_cert']
@@ -141,7 +150,7 @@ class Worker(object):
                 fetch[each] = task_fetch[each]
         fetch['headers'].update(task_fetch.get('headers', {}))
 
-        # UNDO: proxy
+        # Proxy setting
         proxy_string = None
         if isinstance(task_fetch.get('proxy'), six.string_types):
             proxy_string = task_fetch['proxy']
@@ -164,13 +173,12 @@ class Worker(object):
                 fetch['proxy_host'] = fetch['proxy_host'].encode('utf8')
             fetch['proxy_port'] = proxy_splited.port or 8080
 
-        # timeout
+        # Timeout
         if 'timeout' in fetch:
-            # 这里需要看一下???
             fetch['connect_timeout'] = fetch['request_timeout'] = fetch['timeout']
             del fetch['timeout']
 
-        # data rename to body
+        # Rename data to body
         if 'data' in fetch:
             fetch['body'] = fetch['data']
             del fetch['data']
@@ -186,22 +194,18 @@ class Worker(object):
         # setup request parameters
         fetch = self.pack_tornado_request_parameters(url, task)
         task_fetch = task.get('fetch', {})
-
         session = cookies.RequestsCookieJar()
-
         if 'cookies' in fetch:
             session.update(fetch['cookies'])
             del fetch['cookies']
 
         max_redirects = task_fetch.get('max_redirects', 5)
-        # we will handle redirects by hand to capture cookies
         fetch['follow_redirects'] = False
 
-        # making requests
+        # Make request
         while True:
             try:
                 request = tornado.httpclient.HTTPRequest(**fetch)
-                # 这里把cookie整合到了request里面, cookie来自于fetch自带的; 合理
                 cookie_header = cookies.get_cookie_header(session, request)
                 if cookie_header:
                     request.headers['Cookie'] = cookie_header
@@ -222,7 +226,7 @@ class Worker(object):
                 logger.info("[%d] %s:%s %s ", response.code,
                             task.get('project'), task.get('taskid'),
                             url)
-            # redirect
+            # Redirect
             elif (response.code in (301, 302, 303, 307)
                     and response.headers.get('Location')
                     and task_fetch.get('allow_redirects', True)):
@@ -236,19 +240,12 @@ class Worker(object):
                     if 'body' in fetch:
                         del fetch['body']
                 fetch['url'] = urljoin(fetch['url'], response.headers['Location'])
-                '''
-                # maybe not make sense
-                fetch['request_timeout'] -= time.time() - start_time
-                if fetch['request_timeout'] < 0:
-                    fetch['request_timeout'] = 0.1
-                fetch['connect_timeout'] = fetch['request_timeout']
-                '''
                 max_redirects -= 1
                 continue
             else:
-                logger.warning("[%d] %s:%s %s %.2fs", response.code,
+                logger.warning("[%d] %s:%s %s ", response.code,
                                task.get('project'), task.get('taskid'),
-                               url, result['time_cost'])
+                               url)
 
             result = {}
             result['orig_url'] = url
@@ -308,7 +305,7 @@ class Worker(object):
                 del request.headers['Cookie']
             fetch['headers']['Cookie'] = cookies.get_cookie_header(session, request)
 
-        # making requests
+        # Make request
         fetch['headers'] = dict(fetch['headers'])
         try:
             request = tornado.httpclient.HTTPRequest(
@@ -346,7 +343,7 @@ class Worker(object):
         raise gen.Return(result)
 
     def data_fetch(self, url, task):
-        '''A fake fetcher for dataurl'''
+        '''A fake fetcher for the first task in project'''
         result = {}
         result['orig_url'] = url
         result['content'] = ''
@@ -368,14 +365,20 @@ class Worker(object):
                 return
             while not self._quit:
                 try:
-                    # ioloop 有并发请求限制
                     if self.http_client.free_size() <= 0:
                         break
                     task = self.readytask_queue.pop()
-                    #task = {'url': 'https://www.baidu.com/', 'callback': '123'}
-                    # task in dict
-                    # task = unpack(task)
                     if task:
+                        crawl_rate = task.get('crawl_rate')
+
+                        if crawl_rate: # Crawl rate is setted.
+                            key_name = crawl_rate.get('key_name')
+                            request_number = crawl_rate.get('request_number')
+                            time_period = crawl_rate.get('time_period')
+                            if lua_rate_limit(keys=[key_name], args=[time_period, request_number]):
+                                # Request too fast, push the task back to newtask_queue.
+                                push_job(tasks=[task])
+                                break
                         result = self.fetch(task)
                     break
                 except KeyboardInterrupt:
@@ -383,7 +386,7 @@ class Worker(object):
                 except Exception as e:
                     logger.exception(e)
                     break
-        tornado.ioloop.PeriodicCallback(queue_loop, 1000, io_loop=self.ioloop).start()
+        tornado.ioloop.PeriodicCallback(queue_loop, 10, io_loop=self.ioloop).start()
         self._running = True
         try:
             self.ioloop.start()
@@ -400,35 +403,3 @@ class Worker(object):
 
     def size(self):
         return self.http_client.size()
-
-    def xmlrpc_run(self, port=24444, bind='127.0.0.1', logRequests=False):
-        '''Run xmlrpc server'''
-        import umsgpack
-        try:
-            from xmlrpc.server import SimpleXMLRPCServer
-            from xmlrpc.client import Binary
-        except ImportError:
-            from SimpleXMLRPCServer import SimpleXMLRPCServer
-            from xmlrpclib import Binary
-
-        server = SimpleXMLRPCServer((bind, port), allow_none=True, logRequests=logRequests)
-        server.register_introspection_functions()
-        server.register_multicall_functions()
-
-        server.register_function(self.quit, '_quit')
-        server.register_function(self.size)
-
-        def sync_fetch(task):
-            result = self.sync_fetch(task)
-            result = Binary(umsgpack.packb(result))
-            return result
-        server.register_function(sync_fetch, 'fetch')
-
-        def dump_counter(_time, _type):
-            return self._cnt[_time].to_dict(_type)
-        server.register_function(dump_counter, 'counter')
-
-        server.timeout = 0.5
-        while not self._quit:
-            server.handle_request()
-        server.server_close()
