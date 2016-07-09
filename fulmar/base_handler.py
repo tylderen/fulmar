@@ -270,12 +270,23 @@ class BaseHandler(object):
         else:
             task['taskid'] = self.get_taskid(task)
 
+        crawl_rate = {}
+        for key in ('request_number', 'time_period', ):
+            if key in kwargs:
+                crawl_rate[key] = kwargs.pop(key)
+        if crawl_rate:
+            if not crawl_rate.get('time_period'):
+                crawl_rate['time_period'] = 1
+            if not crawl_rate.get('key_name'):
+                crawl_rate['key_name'] = self.project_name
+        task['crawl_rate'] = crawl_rate
+
         if kwargs:
             raise TypeError('crawl() got unexpected keyword argument: %s' % kwargs.keys())
 
         #logger.info('in_crawl: task %s ' % str(task))
-
-        self.newtask_queue.push(task)
+        # self.newtask_queue.push(task)
+        self._follows.append(task)
 
         '''
         self._follows.append(task)
@@ -312,7 +323,7 @@ class BaseHandler(object):
         js_viewport_height=None,
         load_images=None,
 
-        priority=None,
+        priority=None, # type: int. The bigger, the higher priority.
         retries=None,
         exetime=None,
         age=None,
@@ -321,7 +332,11 @@ class BaseHandler(object):
 
         callback=None,
         callback_args=[],
-        callback_kwargs={}):
+        callback_kwargs={}
+
+        crawl_limit:
+            request_number
+            time_period
         ----------------------
         available params:
 
@@ -355,7 +370,6 @@ class BaseHandler(object):
 
           callback
 
-          full documents: http://pyspider.readthedocs.org/en/latest/apis/self.crawl/
         '''
 
         if isinstance(url, six.string_types):
