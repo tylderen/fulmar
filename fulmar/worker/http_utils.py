@@ -1,6 +1,5 @@
 from requests.cookies import MockRequest
 from tornado.curl_httpclient import CurlAsyncHTTPClient
-from tornado.simple_httpclient import SimpleAsyncHTTPClient
 
 
 class MockResponse(object):
