@@ -49,9 +49,12 @@ class fulmarQueue(QueueBase):
         """Return the length of the queue"""
         return self.server.llen(self.key)
 
-    def push(self, task):
+    def push(self, *tasks):
         """Push a task"""
-        self.server.lpush(self.key, self._pack(task))
+        packed_tasks = []
+        for task in tasks:
+            packed_tasks.append(self._pack(task))
+        self.server.lpush(self.key, *packed_tasks)
 
     def pop(self, timeout=0):
         """Pop a task"""
