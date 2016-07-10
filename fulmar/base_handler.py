@@ -2,21 +2,17 @@
 
 import sys
 import inspect
-import functools
 import fractions
 import logging
 
 import six
-from six import add_metaclass, iteritems
+from six import add_metaclass
 
-from fulmar.url import (
+from fulmar.utils import (
     quote_chinese, _build_url, _encode_params,
-    _encode_multipart_formdata, curl_to_arguments)
-from fulmar.util import md5string
-from fulmar.utils import ListO, get_project
-from fulmar.worker.response import rebuild_response
+    _encode_multipart_formdata, )
+from fulmar.utils import sha1string
 from fulmar.pprint import pprint
-from fulmar.message_queue import ready_queue, newtask_queue
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +105,9 @@ class BaseHandler(object):
 
     `BaseHandler.run` is the main method to handler the task.
     """
-    crawl_config = {}
     project_name = None
     project_id = None
+
     _cron_jobs = []
     _min_tick = 0
     __env__ = {'not_inited': True}
@@ -119,20 +115,13 @@ class BaseHandler(object):
 
     def __init__(self):
         self.curr_conn_cookie = {}
-        self.newtask_queue = newtask_queue
 
     def _reset(self):
         """
         reset before each task
         """
+        self.curr_conn_cookie = {}
         self._follows = []
-
-    def _run_func(self, function, *arguments):
-        """
-        Running callback function with requested number of arguments
-        """
-        args, varargs, keywords, defaults = inspect.getargspec(function)
-        return function(*arguments[:len(args) - 1])
 
     def _run_task(self, task, response):
         """
@@ -177,9 +166,9 @@ class BaseHandler(object):
             result = self._run_task(task, response)
             if inspect.isgenerator(result):
                 for r in result:
-                    self._run_func(self.on_result, r, response, task)
+                    self.on_result(r)
             else:
-                self._run_func(self.on_result, result, response, task)
+                self.on_result(result)
         except Exception as e:
             logger.exception(e)
             exception = e
@@ -285,22 +274,11 @@ class BaseHandler(object):
             raise TypeError('crawl() got unexpected keyword argument: %s' % kwargs.keys())
 
         #logger.info('in_crawl: task %s ' % str(task))
-        # self.newtask_queue.push(task)
         self._follows.append(task)
-
-        '''
-        self._follows.append(task)
-        if ret.follows:
-            for each in (ret.follows[x:x + 1000] for x in range(0, len(ret.follows), 1000)):
-                self.newtask_queue.put([newtask for newtask in each])
-        if ret.exception:
-        return task
-        '''
 
     def get_taskid(self, task):
-        '''Generate taskid by information of task md5(url) by default, override me'''
-        return md5string(task['url'])
-
+        '''Generate taskid by information of task sha1(url) by default, override me'''
+        return sha1string(task['url'])
 
     # apis
     def crawl(self, url, **kwargs):
@@ -384,10 +362,6 @@ class BaseHandler(object):
         """Return true if running in debugger"""
         return self.__env__.get('debugger')
 
-    def on_message(self, project, msg):
-        """Receive message from other project, override me."""
-        pass
-
     def on_result(self, result):
         """Receiving returns from other callback, override me."""
         if not result:
@@ -413,17 +387,4 @@ class BaseHandler(object):
             if response.save['tick'] % cronjob.tick != 0:
                 continue
             function = cronjob.__get__(self, self.__class__)
-            self._run_func(function, response, task)
-
-    def _on_get_info(self, response, task):
-        """Sending runtime infomation about this script."""
-        for each in response.save or []:
-            if each == 'min_tick':
-                self.save[each] = self._min_tick
-            elif each == 'retry_delay':
-                if not isinstance(self.retry_delay, dict):
-                    self.retry_delay = {'': self.retry_delay}
-                self.save[each] = self.retry_delay
-
-    def on_finished(self, response, task):
-        pass
+            function(response, task)
