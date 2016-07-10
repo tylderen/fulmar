@@ -1,12 +1,9 @@
 # -*- encoding: utf-8 -*-
 
 import os
-import sys
 import six
-import copy
 import time
 import yaml
-import shutil
 import logging
 import logging.config
 
@@ -137,14 +134,14 @@ def update_project(ctx, project_file):
     Update a project
     """
     from fulmar.scheduler.projectdb import projectdb
-    from fulmar.util import md5string
+    from fulmar.utils import sha1string
     # todo: add default dir to put project
     raw_code = ''
     with open(project_file, 'rb') as f:
         for line in f:
             raw_code += line
 
-    project_id = md5string(raw_code)
+    project_id = sha1string(raw_code)
     project_name = project_file.split('/')[-1].strip(' .py')
     data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id}
     projectdb.set(project_name, data)
