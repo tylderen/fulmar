@@ -1,8 +1,7 @@
 # -*- encoding: utf-8 -*-
-
 import msgpack
 from ..utils import redis
-
+ 
 
 class Projectdb(object):
     def __init__(self, server, projectdb):
@@ -35,5 +34,6 @@ class Projectdb(object):
 
     def delete(self, project_name):
         self.server.hdel(self.projectdb, project_name)
+
 
 projectdb = Projectdb(redis, 'fulmar_projectdb')

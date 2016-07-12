@@ -1,23 +1,53 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
 import six
 import redis
 import logging
 import hashlib
 import yaml
-from six.moves.urllib.parse import urlparse, urlunparse
-from util import utf8
 
-try:
-    from urllib import parse as urlparse
-except ImportError:
-    import urlparse
+from six.moves.urllib.parse import urlparse, urlunparse
+from requests.models import RequestEncodingMixin
+
+encode_params = RequestEncodingMixin._encode_params
+
+
+def build_url(url, _params):
+    """Build the actual URL to use."""
+
+    # Support for unicode domain names and paths.
+    scheme, netloc, path, params, query, fragment = urlparse(url)
+    netloc = netloc.encode('idna').decode('utf-8')
+    if not path:
+        path = '/'
+
+    if six.PY2:
+        if isinstance(scheme, six.text_type):
+            scheme = scheme.encode('utf-8')
+        if isinstance(netloc, six.text_type):
+            netloc = netloc.encode('utf-8')
+        if isinstance(path, six.text_type):
+            path = path.encode('utf-8')
+        if isinstance(params, six.text_type):
+            params = params.encode('utf-8')
+        if isinstance(query, six.text_type):
+            query = query.encode('utf-8')
+        if isinstance(fragment, six.text_type):
+            fragment = fragment.encode('utf-8')
+
+    enc_params = encode_params(_params)
+    if enc_params:
+        if query:
+            query = '%s&%s' % (query, enc_params)
+        else:
+            query = enc_params
+    url = (urlunparse([scheme, netloc, path, params, query, fragment]))
+    return url
 
 
 def connect_redis(url=None):
     if url is not None:
-        parsed = urlparse.urlparse(url)
+        parsed = urlparse(url)
         if parsed.scheme != 'redis':
             raise Exception
         db = parsed.path.lstrip('/').split('/')
@@ -34,7 +64,8 @@ def connect_redis(url=None):
                                  password=password)
 
 
-md5string = lambda x: hashlib.md5(utf8(x)).hexdigest()
+def sha1string(string):
+    return hashlib.sha1(utf8(string)).hexdigest()
 
 
 def read_cfg():
@@ -46,6 +77,7 @@ def read_cfg():
     except IOError as e:
         err = 'No default configuration file find !'
         logging.debug(err)
+
 
 def unicode_text(string, encoding='utf8'):
     """
@@ -59,6 +91,7 @@ def unicode_text(string, encoding='utf8'):
         return string.decode(encoding)
     else:
         return six.text_type(string)
+
 
 def pretty_unicode(string):
     """
@@ -83,81 +116,19 @@ def quote_chinese(url, encodeing="utf-8"):
     return "".join(res)
 
 
-def _build_url(url, _params):
-    """Build the actual URL to use."""
+def utf8(string):
+    """
+    Make sure string is utf8 encoded bytes.
 
-    # Support for unicode domain names and paths.
-    scheme, netloc, path, params, query, fragment = urlparse(url)
-    netloc = netloc.encode('idna').decode('utf-8')
-    if not path:
-        path = '/'
+    If parameter is a object, object.__str__ will been called before encode as bytes
+    """
+    if isinstance(string, six.text_type):
+        return string.encode('utf8')
+    elif isinstance(string, six.binary_type):
+        return string
+    else:
+        return six.text_type(string).encode('utf8')
 
-    if six.PY2:
-        if isinstance(scheme, six.text_type):
-            scheme = scheme.encode('utf-8')
-        if isinstance(netloc, six.text_type):
-            netloc = netloc.encode('utf-8')
-        if isinstance(path, six.text_type):
-            path = path.encode('utf-8')
-        if isinstance(params, six.text_type):
-            params = params.encode('utf-8')
-        if isinstance(query, six.text_type):
-            query = query.encode('utf-8')
-        if isinstance(fragment, six.text_type):
-            fragment = fragment.encode('utf-8')
-
-    enc_params = _encode_params(_params)
-    if enc_params:
-        if query:
-            query = '%s&%s' % (query, enc_params)
-        else:
-            query = enc_params
-    url = (urlunparse([scheme, netloc, path, params, query, fragment]))
-    return url
-
-
-class ListO(object):
-
-    """A StringO write to list."""
-
-    def __init__(self, buffer=None):
-        self._buffer = buffer
-        if self._buffer is None:
-            self._buffer = []
-
-    def isatty(self):
-        return False
-
-    def close(self):
-        pass
-
-    def flush(self):
-        pass
-
-    def seek(self, n, mode=0):
-        pass
-
-    def readline(self):
-        pass
-
-    def reset(self):
-        pass
-
-    def write(self, x):
-        self._buffer.append(x)
-
-    def writelines(self, x):
-        self._buffer.extend(x)
-
-def get_project():
-    file = os.path.abspath(sys.argv[0])
-    raw_code = ''
-    with open(file, 'rb') as f:
-        for line in f:
-            raw_code += line
-    file_md5 = md5string(raw_code)
-    project_name = file.split('/')[-1].strip(' .py')
-    return project_name, file_md5
 
 class ObjectDict(dict):
     """
@@ -202,3 +173,19 @@ def run_in_subprocess(func, *args, **kwargs):
     thread.daemon = True
     thread.start()
     return thread
+
+
+def encode_multipart_formdata(fields, files):
+    body, content_type = RequestEncodingMixin._encode_files(files, fields)
+    return content_type, body
+
+
+def quote_chinese(url, encodeing="utf-8"):
+    """Quote non-ascii characters"""
+    if isinstance(url, six.text_type):
+        return quote_chinese(url.encode(encodeing))
+    if six.PY3:
+        res = [six.int2byte(b).decode('latin-1') if b < 128 else '%%%02X' % b for b in url]
+    else:
+        res = [b if ord(b) < 128 else '%%%02X' % ord(b) for b in url]
+    return "".join(res)

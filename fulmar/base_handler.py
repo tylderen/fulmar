@@ -9,8 +9,7 @@ import six
 from six import add_metaclass
 
 from fulmar.utils import (
-    quote_chinese, _build_url, _encode_params,
-    _encode_multipart_formdata, )
+    quote_chinese, build_url, encode_params)
 from fulmar.utils import sha1string
 from fulmar.pprint import pprint
 
@@ -77,7 +76,6 @@ def every(minutes=NOTSET, seconds=NOTSET):
 
 
 class BaseHandlerMeta(type):
-
     def __new__(cls, name, bases, attrs):
         # A list of all functions which is marked as 'is_cronjob=True'
         cron_jobs = []
@@ -100,8 +98,7 @@ class BaseHandlerMeta(type):
 
 @add_metaclass(BaseHandlerMeta)
 class BaseHandler(object):
-    """
-    BaseHandler for all scripts.
+    """BaseHandler for all scripts.
 
     `BaseHandler.run` is the main method to handler the task.
     """
@@ -155,13 +152,10 @@ class BaseHandler(object):
         logger = module.logger
         result = None
         exception = None
-        stdout = sys.stdout
         self.task = task
         self.response = response
         self.curr_conn_cookie = response.cookies
         try:
-            #if self.__env__.get('enable_stdout_capture', False):
-            #    sys.stdout = ListO(module.log_buffer)
             self._reset()
             result = self._run_task(task, response)
             if inspect.isgenerator(result):
@@ -174,14 +168,11 @@ class BaseHandler(object):
             exception = e
         finally:
             follows = self._follows
-            #logs = list(module.log_buffer)
 
-            sys.stdout = stdout
             self.task = None
             self.response = None
             self.save = None
 
-        #module.log_buffer[:] = []
         return (result, follows,  exception)
 
     def _crawl(self, url, **kwargs):
@@ -204,9 +195,9 @@ class BaseHandler(object):
             else:
                 raise NotImplementedError("self.%s() not implemented!" % callback)
 
-        url = quote_chinese(_build_url(url.strip(), kwargs.pop('params', None)))
+        url = quote_chinese(build_url(url.strip(), kwargs.pop('params', None)))
         if kwargs.get('data'):
-            kwargs['data'] = _encode_params(kwargs['data'])
+            kwargs['data'] = encode_params(kwargs['data'])
         if kwargs.get('data'):
             kwargs.setdefault('method', 'POST')
 
@@ -371,7 +362,6 @@ class BaseHandler(object):
             pprint(result)
         if self.__env__.get('result_queue'):
             self.__env__['result_queue'].put((self.task, result))
-        #logger.info(result)
 
     def _on_cronjob(self, response, task):
         if (not response.save

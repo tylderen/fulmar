@@ -2,8 +2,13 @@ from requests.cookies import MockRequest
 from tornado.curl_httpclient import CurlAsyncHTTPClient
 
 
-class MockResponse(object):
+def extract_cookies_to_jar(jar, request, response):
+    req = MockRequest(request)
+    res = MockResponse(response)
+    jar.extract_cookies(res, req)
 
+
+class MockResponse(object):
     def __init__(self, headers):
         self._headers = headers
 
@@ -19,14 +24,7 @@ class MockResponse(object):
         return self._headers.get_list(name) or default
 
 
-def extract_cookies_to_jar(jar, request, response):
-    req = MockRequest(request)
-    res = MockResponse(response)
-    jar.extract_cookies(res, req)
-
-
 class MyCurlAsyncHTTPClient(CurlAsyncHTTPClient):
-
     def free_size(self):
         return len(self._free_list)
 
