@@ -30,9 +30,7 @@ def load_cls(ctx, param, value):
 @click.version_option(version=fulmar.__version__, prog_name=fulmar.__name__)
 @click.pass_context
 def cli(ctx, **kwargs):
-    """
-    A powerful spider system in python.
-    """
+    """A powerful spider system in python."""
     logging.config.fileConfig(kwargs['logging_config'])
     config = {}
     config_filepath = os.path.join(os.path.dirname(__file__), "config.yml")
@@ -81,9 +79,7 @@ def cli(ctx, **kwargs):
 @click.option('--worker-cls', default='fulmar.worker.Worker', callback=load_cls)
 @click.pass_context
 def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
-    """
-    Run Worker.
-    """
+    """Run Worker."""
     g = ctx.obj
     from fulmar.message_queue import newtask_queue, ready_queue
     from fulmar.scheduler.projectdb import projectdb
@@ -98,9 +94,7 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 @click.option('--scheduler-cls', default='fulmar.scheduler.Scheduler', callback=load_cls)
 @click.pass_context
 def scheduler(ctx, scheduler_cls):
-    """
-    Run Scheduler.
-    """
+    """Run Scheduler."""
     g = ctx.obj
     from fulmar.message_queue import newtask_queue, ready_queue
     from fulmar.scheduler.projectdb import projectdb
@@ -114,6 +108,7 @@ def scheduler(ctx, scheduler_cls):
 @click.option('--worker-num', default=1, help='default worker num')
 @click.pass_context
 def all(ctx, worker_num):
+    """Start scheduler and worker together."""
     g = ctx.obj
     threads = []
     scheduler_config = g.get('scheduler', {})
@@ -130,9 +125,7 @@ def all(ctx, worker_num):
 @click.argument('project_file')
 @click.pass_context
 def update_project(ctx, project_file):
-    """
-    Update a project
-    """
+    """Update a project."""
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.utils import sha1string
     # todo: add default dir to put project
@@ -146,23 +139,21 @@ def update_project(ctx, project_file):
     data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id}
     projectdb.set(project_name, data)
 
+    logging.info('Successfully update the project "%s".', project_name)
+
 
 @cli.command()
 @click.argument('project')
 @click.pass_context
 def start_project(ctx, project):
-    """
-    Start a project
-    """
-    from fulmar.message_queue import newtask_queue, ready_queue
+    """Start a project."""
+    from fulmar.message_queue import newtask_queue
     from fulmar.scheduler.projectdb import projectdb
     project_name = project.split('/')[-1].strip(' .py')
     project_data = projectdb.get(project_name)
     if not project_data:
         ctx.invoke(update_project, project_file=project)
         project_data = projectdb.get(project_name)
-
-    logging.info(project_data)
 
     newtask = {
         "project_name": project_name,
@@ -176,6 +167,8 @@ def start_project(ctx, project):
         },
     }
     newtask_queue.push(newtask)
+
+    logging.info('Successfully start the project "%s".', project_name)
 
 
 def main():
