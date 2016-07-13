@@ -20,7 +20,7 @@ class Projectdb(object):
 
     def _unpack(self, task):
         """unpack a task previously packed"""
-        return msgpack.loads(task)
+        return msgpack.loads(task, encoding='utf8')
 
     def get(self, project_name):
         project_data = self.server.hget(self.projectdb, project_name)
