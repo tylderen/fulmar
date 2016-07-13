@@ -24,7 +24,7 @@ class QueueBase(object):
 
     def _unpack(self, task):
         """unpack a task previously packed"""
-        return msgpack.loads(task)
+        return msgpack.loads(task, encoding='utf8')
 
     def __len__(self):
         """Return the length of the queue"""
