@@ -26,6 +26,12 @@ class QueueBase(object):
         """unpack a task previously packed"""
         return msgpack.loads(task, encoding='utf8')
 
+    def __bool__(self):
+        return True
+
+    def __nonzero__(self):
+        return True
+
     def __len__(self):
         """Return the length of the queue"""
         raise NotImplementedError
@@ -54,7 +60,8 @@ class fulmarQueue(QueueBase):
         packed_tasks = []
         for task in tasks:
             packed_tasks.append(self._pack(task))
-        self.server.lpush(self.key, *packed_tasks)
+        if packed_tasks:
+            self.server.lpush(self.key, *packed_tasks)
 
     def pop(self, timeout=0):
         """Pop a task"""
