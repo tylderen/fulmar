@@ -61,5 +61,5 @@ class Processor(object):
 
         return follows
 
-    def put_tasks(self, tasks):
+    def push_tasks(self, tasks):
         self.putter.put(tasks)

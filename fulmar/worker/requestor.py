@@ -39,29 +39,33 @@ class Requestor(object):
         self.timeout = timeout
         self.proxy = proxy
         self.async = async
-        self.ioloop = ioloop
         self.processor = Processor(newtask_queue, projectdb)
-        self._follows = []
         if not user_agent:
             self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
+        self.ioloop = ioloop
         # Bind io_loop to http_client
         if self.async:
             self.http_client = MyCurlAsyncHTTPClient(max_clients=self.poolsize, io_loop=self.ioloop)
         else:
             self.http_client = tornado.httpclient.HTTPClient(MyCurlAsyncHTTPClient, max_clients=self.poolsize)
 
+        self._follows = []
+
     def add_follows(self, tasks):
+        """Collect new generated tasks"""
         if not isinstance(tasks, list):
             tasks = [tasks]
         self._follows.extend(tasks)
 
-    def push_follows(self):
+    def _push_follows(self):
+        """Push new generated tasks to newtask_queue"""
         if self._follows:
-            self.processor.put_tasks(self._follows)
+            self.processor.push_tasks(self._follows)
         self._follows = []
 
     def request(self, task=None):
+        """Request a new task"""
         callback = task.get('process', {}).get('callback')
         if callback is None:
             raise Exception('No callback found !')
@@ -74,7 +78,6 @@ class Requestor(object):
 
     @gen.coroutine
     def _async_request(self, task):
-        """Async fetch."""
         url = task.get('url')
         if url.startswith('first_task'):
             result = yield gen.maybe_future(self._fake_request(url, task))
@@ -86,12 +89,16 @@ class Requestor(object):
                     result = yield self._http_request(url, task)
             except Exception as e:
                 logger.exception(e)
+
+        # generate new tasks
         follows = self.processor.handle_result(task, result)
         self.add_follows(follows)
-        self.push_follows()
+        # push new tasks to newtask_queue
+        self._push_follows()
+
         raise gen.Return(result)
 
-    def _handle_error(self, type, url, task, start_time, error):
+    def _handle_error(self, url, task, start_time, error):
         result = {
             'status_code': getattr(error, 'code', 599),
             'error': unicode_text(error),
@@ -102,7 +109,7 @@ class Requestor(object):
         }
         logger.error("[%d] %s:%s %s, %r %.2fs",
                      result['status_code'], task.get('project'), task.get('taskid'),
-                     url, error, result['time'])
+                     url, error, result['time_cost'])
         return result
 
     allowed_options = ['method', 'data', 'timeout', 'cookies', 'validate_cert']
@@ -158,7 +165,7 @@ class Requestor(object):
     def _http_request(self, url, task):
         start_time = time.time()
 
-        handle_error = lambda x: self._handle_error('http', url, task, start_time, x)
+        handle_error = lambda x: self._handle_error(url, task, start_time, x)
 
         # setup request parameters
         fetch = self._pack_tornado_request_parameters(url, task)
@@ -179,7 +186,7 @@ class Requestor(object):
                 if cookie_header:
                     request.headers['Cookie'] = cookie_header
             except Exception as e:
-                logger.exception(fetch)
+                logger.exception(e)
                 raise gen.Return(handle_error(e))
 
             try:
@@ -310,7 +317,7 @@ class Requestor(object):
         raise gen.Return(result)
 
     def _fake_request(self, url, task):
-        """A fake fetcher for the first task in project"""
+        """A fake request for the first task in project"""
         result = {}
         result['orig_url'] = url
         result['content'] = ''
@@ -319,7 +326,7 @@ class Requestor(object):
         result['url'] = url
         result['cookies'] = {}
         result['time_cost'] = 0
-        logger.info("[200] %s:%s %s 0s", task.get('project'), task.get('taskid'), url)
+        logger.info("[200] %s:%s %s 0s", task.get('project_name'), task.get('taskid'), url)
 
         return result
 
