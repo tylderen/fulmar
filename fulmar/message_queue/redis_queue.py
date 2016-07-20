@@ -1,7 +1,5 @@
 # -*- encoding: utf-8 -*-
-
 import msgpack
-
 
 
 class QueueBase(object):
@@ -36,35 +34,35 @@ class QueueBase(object):
         """Return the length of the queue"""
         raise NotImplementedError
 
-    def push(self, task):
-        """Push a task"""
+    def put(self, task):
+        """Put a task"""
         raise NotImplementedError
 
-    def pop(self, timeout=0):
-        """Pop a task"""
+    def get(self, timeout=0):
+        """Get a task"""
         raise NotImplementedError
 
     def clear(self):
         """Clear queue/stack"""
         self.server.delete(self.key)
 
-class fulmarQueue(QueueBase):
+class NewTaskQueue(QueueBase):
     """FIFO queue"""
 
     def __len__(self):
         """Return the length of the queue"""
         return self.server.llen(self.key)
 
-    def push(self, *tasks):
-        """Push a task"""
+    def put(self, *tasks):
+        """Put tasks"""
         packed_tasks = []
         for task in tasks:
             packed_tasks.append(self._pack(task))
         if packed_tasks:
             self.server.lpush(self.key, *packed_tasks)
 
-    def pop(self, timeout=0):
-        """Pop a task"""
+    def get(self, timeout=0):
+        """Get a task"""
         if timeout > 0:
             data = self.server.brpop(self.key, timeout)
             if isinstance(data, tuple):
@@ -75,29 +73,35 @@ class fulmarQueue(QueueBase):
             return self._unpack(data)
 
 
-class fulmarReadyQueue(QueueBase):
+class ReadyQueue(QueueBase):
     """Priority queue abstraction using redis' sorted set"""
     def __len__(self):
         """Return the length of the queue"""
         return self.server.zcard(self.key)
 
-    def push(self, task):
-        """Push a task"""
+    def put(self, task):
+        """Put a task"""
+        if not isinstance(task, dict):
+            raise TypeError('task\'s type must be dict.' )
         priority = task.get('priority', 2)
+        if not isinstance(priority, int):
+            raise TypeError('priority\'s type must be int.')
         data = self._pack(task)
         pairs = {data: priority}
         self.server.zadd(self.key, **pairs)
 
-    def pop(self, timeout=0):
+    def get(self, timeout=0):
         """
-        Pop a task
+        Get a task
         timeout not support in this queue class
         """
         # use atomic range/remove using multi/exec
         pipe = self.server.pipeline()
         pipe.multi()
-        pipe.zrange(self.key, 0, 0).zremrangebyrank(self.key, 0, 0)
+        pipe.zrange(self.key, 0, 0, desc=True).zremrangebyrank(self.key, -1, -1)
+        #pipe.zremrangebyrank(self.key, -1, -1)
         results, count = pipe.execute()
+        print results
         if results:
             return self._unpack(results[0])
         else:
