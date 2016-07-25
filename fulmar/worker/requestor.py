@@ -5,6 +5,8 @@ import copy
 import json
 import time
 import logging
+import functools
+import threading
 
 import six
 import tornado.httpclient
@@ -43,7 +45,10 @@ class Requestor(object):
         if not user_agent:
             self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
-        self.ioloop = ioloop
+        if ioloop == None:
+            self.ioloop = tornado.ioloop.IOLoop()
+        else:
+            self.ioloop = ioloop
         # Bind io_loop to http_client
         if self.async:
             self.http_client = MyCurlAsyncHTTPClient(max_clients=self.poolsize, io_loop=self.ioloop)
@@ -58,10 +63,10 @@ class Requestor(object):
             tasks = [tasks]
         self._follows.extend(tasks)
 
-    def _push_follows(self):
-        """Push new generated tasks to newtask_queue"""
+    def _put_follows(self):
+        """Put new generated tasks to newtask_queue"""
         if self._follows:
-            self.processor.push_tasks(self._follows)
+            self.processor.put_tasks(self._follows)
         self._follows = []
 
     def request(self, task=None):
@@ -90,13 +95,20 @@ class Requestor(object):
             except Exception as e:
                 logger.exception(e)
 
-        # generate new tasks
-        follows = self.processor.handle_result(task, result)
-        self.add_follows(follows)
-        # push new tasks to newtask_queue
-        self._push_follows()
+        if task.get('process', {}).get('callback'):
+            follows = self.processor.handle_result(task, result)
+            self.add_follows(follows)
+            # put new tasks to newtask_queue
+            self._put_follows()
 
         raise gen.Return(result)
+
+    def sync_request(self, task):
+        """
+            Synchronization request.
+            Now, it's only for testing.
+        """
+        return self.ioloop.run_sync(functools.partial(self._async_request, task))
 
     def _handle_error(self, url, task, start_time, error):
         result = {
