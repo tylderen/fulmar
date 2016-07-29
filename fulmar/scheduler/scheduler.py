@@ -1,26 +1,49 @@
 # -*- coding: utf-8 -*-
 import time
+import threading
 import logging
+
+from cron import Cron
 
 logger = logging.getLogger('scheduler')
 
 
 class Scheduler(object):
-    def __init__(self, newtask_queue, ready_queue):
+
+    def __init__(self, newtask_queue, ready_queue, cron_queue):
         self._quit = False
         self.newtask_queue = newtask_queue
         self.ready_queue = ready_queue
+        self.cron = Cron(cron_queue, ready_queue)
+        self.cron_thread = threading.Thread(target=self.cron.run)
+        self.cron_thread.setDaemon(True)
 
     def run(self):
         logger.info('scheduler starting...')
+        self.run_thead(self.cron_thread)
         while not self._quit:
             try:
-                task = self.newtask_queue.pop()
+                task = self.newtask_queue.get()
                 if task is not None:
                     logger.info('Ready task: %s' % str(task))
-                    self.ready_queue.push(task)
+                    if Cron.is_cron(task):
+                        self.cron.put(task)
+                    else:
+                        self.ready_queue.put(task)
                 else:
-                    # logger.info('No ready task.')
+                    # logger.info('No ready task. Take a nap.')
                     time.sleep(0.2)
+            except KeyboardInterrupt:
+                logger.info('KeyboardInterrupt, bye bye.')
+                self.stop()
             except Exception as e:
                 logger.error(str(e))
+
+    def run_thead(self, thread):
+        try:
+            thread.start()
+        except RuntimeError:
+            raise RuntimeError('thread is called more than once on the same thread object')
+
+    def stop(self):
+        self._quit = True

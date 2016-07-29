@@ -1,6 +1,7 @@
 six
 redis
 tornado
+tabulate
 pycurl
 pyyaml
 msgpack-python

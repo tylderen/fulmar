@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-
 import os
 import six
 import time
@@ -9,9 +8,10 @@ import logging.config
 
 import click
 import fulmar
-
+import threading
+from tabulate import tabulate
 from fulmar import utils
-
+from fulmar.utils import json_dumps
 
 def connect_redis(ctx, param, value):
     return utils.connect_redis(value)
@@ -63,7 +63,7 @@ def cli(ctx, **kwargs):
     return 0
     """
     lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
-    setattr(utils, 'redis', redis_conn)
+    setattr(utils, 'redis_conn', redis_conn)
     setattr(utils, 'lua_rate_limit',lua_rate_limit)
 
     ctx.obj = utils.ObjectDict(ctx.obj or {})
@@ -72,7 +72,7 @@ def cli(ctx, **kwargs):
 
 
 @cli.command()
-@click.option('--poolsize', default=100, help="pool size")
+@click.option('--poolsize', default=300, help="pool size")
 @click.option('--proxy', help="proxy host:port")
 @click.option('--user-agent', help='user agent')
 @click.option('--timeout', help='default fetch timeout')
@@ -86,7 +86,7 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
     Worker = load_cls(None, None, worker_cls)
 
     worker = Worker(ready_queue, newtask_queue, projectdb,
-                    poolsize=poolsize, proxy=proxy, async=async, user_agent=user_agent)
+                    poolsize=poolsize, proxy=proxy, async=async)
     worker.run()
 
 
@@ -96,16 +96,15 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 def scheduler(ctx, scheduler_cls):
     """Run Scheduler."""
     g = ctx.obj
-    from fulmar.message_queue import newtask_queue, ready_queue
-    from fulmar.scheduler.projectdb import projectdb
+    from fulmar.message_queue import newtask_queue, ready_queue, cron_queue
     Scheduler = load_cls(None, None, scheduler_cls)
 
-    scheduler = Scheduler(newtask_queue, ready_queue)
+    scheduler = Scheduler(newtask_queue, ready_queue, cron_queue)
     scheduler.run()
 
 
 @cli.command()
-@click.option('--worker-num', default=1, help='default worker num')
+@click.option('--worker-num', default=1, help='Default worker num')
 @click.pass_context
 def all(ctx, worker_num):
     """Start scheduler and worker together."""
@@ -118,6 +117,7 @@ def all(ctx, worker_num):
     threads.append(utils.run_in_thread(ctx.invoke, worker, **worker_config))
     for i in threads:
         logging.info(i)
+    logging.info(threading.enumerate())
     time.sleep(500)
 
 
@@ -166,9 +166,58 @@ def start_project(ctx, project):
         "schedule": {
         },
     }
-    newtask_queue.push(newtask)
+    newtask_queue.put(newtask)
 
     logging.info('Successfully start the project "%s".', project_name)
+
+
+@cli.command()
+@click.option('--delete', '-d', help='Delete a cron task. Here use taskid, e.g, -d taskid')
+@click.option('--list', '-l', is_flag=True, help='List all of cron tasks so far.')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose mode. Show more information about this crontab.')
+@click.pass_context
+def crontab(ctx, delete, verbose, list):
+    from fulmar.message_queue import cron_queue
+    from datetime import datetime
+    range = cron_queue.range()
+
+    if delete:
+        is_ok = False
+        for task, _ in range:
+            if task['taskid'] == delete:
+                is_ok = cron_queue.delete_one(task)
+                click.echo('Successfully delete task: %s' % delete)
+                break
+        if not is_ok:
+            click.echo('Failed to delete task: %s. Please make sure the taskid is correct.' % delete)
+        return
+
+    headers = ['project', 'task_id', 'url', 'crawl_period', 'next_crawl_time']
+    table = []
+    tasks = []
+    if verbose:
+        for task, time in range:
+            tasks.append(task)
+        click.echo(json_dumps(tasks, indent=4))
+    else:
+        for task, time in range:
+            time = datetime.fromtimestamp(time)
+            next_crawl_time =time.strftime('%Y-%m-%d %H:%M:%S')
+            project = task.get('project_name')
+            url = task.get('url')
+            taskid = task.get('taskid')
+            crawl_period = task.get('schedule',{}).get('crawl_period')
+            if crawl_period > 60 * 60 * 24:
+                crawl_period = str(crawl_period / (60 * 60 * 24.0)) + '(days)'
+            elif crawl_period > 60 * 60:
+                crawl_period = str(crawl_period / (60 * 60.0)) + ' (hours)'
+            elif crawl_period > 60:
+                crawl_period = str(crawl_period / 60.0) + ' (minutes)'
+            else:
+                crawl_period = str(crawl_period) + ' (seconds)'
+
+            table.append([project, taskid, url, crawl_period, next_crawl_time])
+        click.echo(tabulate(table, headers, tablefmt="grid", numalign="right"))
 
 
 def main():
