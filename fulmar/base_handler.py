@@ -202,13 +202,24 @@ class BaseHandler(object):
             kwargs.setdefault('method', 'POST')
 
         schedule = {}
-        for key in ('priority', 'retries', 'start_time', 'age', 'rate'):
+        for key in (
+            'priority', 'retries',
+            'start_time', 'age',
+            'rate',
+        ):
             if key in kwargs:
                 schedule[key] = kwargs.pop(key)
+        for key in (
+            'crawl_at', 'crawl_later',
+            'crawl_period'
+        ):
+            if key in kwargs:
+                schedule['is_cron'] = True
+                schedule[key] = kwargs.pop(key)
+
         task['schedule'] = schedule
-
+        logger.error(task)
         fetch = {}
-
         for key in (
                 'method',
                 'headers',
@@ -306,6 +317,10 @@ class BaseHandler(object):
         crawl_limit:
             request_number
             time_period
+
+        crawl_at
+        crawl_later
+        crawl_period
         ----------------------
         available params:
 
