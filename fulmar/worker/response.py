@@ -177,11 +177,11 @@ def rebuild_response(r):
     response = Response()
     response.status_code = r.get('status_code', 599)
     response.url = r.get('url', '')
+    response.orig_url = r.get('orig_url', response.url)
     response.headers = CaseInsensitiveDict(r.get('headers', {}))
     response.content = r.get('content', '')
     response.cookies = r.get('cookies', {})
     response.error = r.get('error')
     response.time_cost = r.get('time_cost', 0)
-    response.orig_url = r.get('orig_url', response.url)
     response.js_script_result = r.get('js_script_result')
     return response
