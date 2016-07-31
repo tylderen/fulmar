@@ -212,7 +212,7 @@ class Requestor(object):
             extract_cookies_to_jar(session, response.request, response.headers)
             if 200 <= response.code < 300:
                 logger.info("[%d] %s:%s %s ", response.code,
-                            task.get('project'), task.get('taskid'),
+                            task.get('project_name'), task.get('taskid'),
                             url)
             # Redirect
             elif (response.code in (301, 302, 303, 307)
@@ -232,7 +232,7 @@ class Requestor(object):
                 continue
             else:
                 logger.warning("[%d] %s:%s %s ", response.code,
-                               task.get('project'), task.get('taskid'),
+                               task.get('project_name'), task.get('taskid'),
                                url)
 
             result = {}
