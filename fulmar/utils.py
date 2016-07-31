@@ -5,11 +5,32 @@ import redis
 import logging
 import hashlib
 import yaml
+import json
+from functools import partial
 
 from six.moves.urllib.parse import urlparse, urlunparse
 from requests.models import RequestEncodingMixin
 
 encode_params = RequestEncodingMixin._encode_params
+json_dumps = partial(json.dumps, ensure_ascii=False, sort_keys=True)
+
+
+LUA_RATE_LIMIT_SCRIPT = """
+    local current_requests = redis.call('get', KEYS[1])
+    if not current_requests then
+        redis.call('incr', KEYS[1])
+        redis.call('expire', KEYS[1], ARGV[1])
+        return 0
+    end
+    if tonumber(current_requests) >= tonumber(ARGV[2]) then
+        return 1
+    end
+    redis.call('incr', KEYS[1])
+    return 0
+    """
+
+
+# lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
 
 
 def build_url(url, _params):
@@ -46,22 +67,25 @@ def build_url(url, _params):
 
 
 def connect_redis(url=None):
-    if url is not None:
-        parsed = urlparse(url)
-        if parsed.scheme != 'redis':
-            raise Exception
-        db = parsed.path.lstrip('/').split('/')
-        try:
-            db = int(db[0])
-        except:
-            db = 0
-        host = parsed.hostname
-        port = parsed.port
-        password = parsed.password or None
-        return redis.StrictRedis(host=host,
-                                 port=port,
-                                 db=db,
-                                 password=password)
+    if url is None:
+        url = 'redis://127.0.0.1:6379/0'
+
+    parsed = urlparse(url)
+
+    if parsed.scheme != 'redis':
+        raise Exception
+    db = parsed.path.lstrip('/').split('/')
+    try:
+        db = int(db[0])
+    except:
+        db = 0
+    host = parsed.hostname
+    port = parsed.port
+    password = parsed.password or None
+    return redis.StrictRedis(host=host,
+                             port=port,
+                             db=db,
+                             password=password)
 
 
 def sha1string(string):
