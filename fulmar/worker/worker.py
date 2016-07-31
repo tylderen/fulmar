@@ -1,13 +1,18 @@
 # -*- encoding: utf-8 -*-
 from __future__ import unicode_literals
 import logging
-
 import tornado.httpclient
 import tornado.httputil
 import tornado.ioloop
 
 from .requestor import Requestor
-from ..utils import lua_rate_limit
+
+try:
+    from ..utils import lua_rate_limit
+except ImportError:
+    from ..message_queue import redis_conn
+    from ..utils import LUA_RATE_LIMIT_SCRIPT
+    lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
 
 logger = logging.getLogger('worker')
 
@@ -43,15 +48,15 @@ class Worker(object):
                 if self.requestor.free_size() <= 0:
                     logger.warning('Too many requests is running!')
                     return
-                task = self.readytask_queue.pop()
+                task = self.readytask_queue.get()
                 if task:
                     crawl_rate = task.get('crawl_rate')
                     if crawl_rate:
-                        key_name = crawl_rate.get('key_name')
+                        limit_level = crawl_rate.get('limit_level')
                         request_number = crawl_rate.get('request_number')
                         time_period = crawl_rate.get('time_period')
-                        if lua_rate_limit(keys=[key_name], args=[time_period, request_number]):
-                            # Request too fast, push the task back to newtask_queue.
+                        if lua_rate_limit(keys=[limit_level], args=[time_period, request_number]):
+                            # Request too fast, put the task back to newtask_queue.
                             self.requestor.add_follows(task)
                     result = self.requestor.request(task)
             except Exception as e:
