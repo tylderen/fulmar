@@ -1,12 +1,8 @@
 # -*- encoding: utf-8 -*-
-
-import sys
 import inspect
-import fractions
 import logging
 
 import six
-from six import add_metaclass
 
 from fulmar.utils import (
     quote_chinese, build_url, encode_params)
@@ -24,84 +20,28 @@ def catch_status_code_error(func):
     return func
 
 
-def config(_config=None, **kwargs):
-    """
-    A decorator for setting the default kwargs of `BaseHandler.crawl`.
-    Any self.crawl with this callback will use this config.
-    """
-    if _config is None:
-        _config = {}
-    _config.update(kwargs)
-
-    def wrapper(func):
-        func._config = _config
-        return func
-    return wrapper
+def crawl_rate(time_period=None, request_number=None):
+    def handle_fun(func):
+        def inner(*args, **kwargs):
+            if not time_period:
+                local_time_period = 1
+            else:
+                local_time_period = time_period
+            if request_number:
+                kwargs.update(time_period=local_time_period, request_number=request_number)
+            else:
+                raise KeyError('crawl_rate() did not get expected keyword argument: %s' % 'request_number')
+            return func(*args, **kwargs)
+        return inner
+    return handle_fun
 
 
 class NOTSET(object):
     pass
 
 
-def every(minutes=NOTSET, seconds=NOTSET):
-    """
-    method will been called every minutes or seconds
-    """
-    def wrapper(func):
-        # mark the function with variable 'is_cronjob=True', the function would be
-        # collected into the list Handler._cron_jobs by meta class
-        func.is_cronjob = True
-
-        # collect interval and unify to seconds, it's used in meta class. See the
-        # comments in meta class.
-        func.tick = minutes * 60 + seconds
-        return func
-
-    if inspect.isfunction(minutes):
-        func = minutes
-        minutes = 1
-        seconds = 0
-        return wrapper(func)
-
-    if minutes is NOTSET:
-        if seconds is NOTSET:
-            minutes = 1
-            seconds = 0
-        else:
-            minutes = 0
-    if seconds is NOTSET:
-        seconds = 0
-
-    return wrapper
-
-
-class BaseHandlerMeta(type):
-    def __new__(cls, name, bases, attrs):
-        # A list of all functions which is marked as 'is_cronjob=True'
-        cron_jobs = []
-
-        # The min_tick is the greatest common divisor(GCD) of the interval of cronjobs
-        # this value would be queried by scheduler when the project initial loaded.
-        # Scheudler may only send _on_cronjob task every min_tick seconds. It can reduce
-        # the number of tasks sent from scheduler.
-        min_tick = 0
-
-        for each in attrs.values():
-            if inspect.isfunction(each) and getattr(each, 'is_cronjob', False):
-                cron_jobs.append(each)
-                min_tick = fractions.gcd(min_tick, each.tick)
-        newcls = type.__new__(cls, name, bases, attrs)
-        newcls._cron_jobs = cron_jobs
-        newcls._min_tick = min_tick
-        return newcls
-
-
-@add_metaclass(BaseHandlerMeta)
 class BaseHandler(object):
-    """BaseHandler for all scripts.
-
-    `BaseHandler.run` is the main method to handler the task.
-    """
+    """BaseHandler for all scripts."""
     project_name = None
     project_id = None
 
@@ -110,14 +50,22 @@ class BaseHandler(object):
     __env__ = {'not_inited': True}
     retry_delay = {}
 
-    def __init__(self):
-        self.curr_conn_cookie = {}
+    def __init__(self, project_name=None, project_id=None,
+                 request_number=None, time_period=None):
+        self.project_name = project_name
+        self.project_id = project_id
+        self.request_number = request_number
+        self.time_period = time_period
+
+        self._curr_conn_cookie = {}
+        self._follows = []
+
 
     def _reset(self):
         """
         reset before each task
         """
-        self.curr_conn_cookie = {}
+        self._curr_conn_cookie = {}
         self._follows = []
 
     def _run_task(self, task, response):
@@ -134,7 +82,7 @@ class BaseHandler(object):
             raise NotImplementedError("self.%s() not implemented!" % callback)
 
         function = getattr(self, callback)
-        #logger.info(function)
+
         # do not run_func when 304
         if response.status_code == 304 and not getattr(function, '_catch_status_code_error', False):
             return None
@@ -147,14 +95,14 @@ class BaseHandler(object):
 
     def run_task(self, module, task, response):
         """
-        Processing the task, catching exceptions and logs, return a `ProcessorResult` object
+        Processing the task, catching exceptions and logs
         """
         logger = module.logger
         result = None
         exception = None
         self.task = task
         self.response = response
-        self.curr_conn_cookie = response.cookies
+        self._curr_conn_cookie = response.cookies
         try:
             self._reset()
             result = self._run_task(task, response)
@@ -198,15 +146,12 @@ class BaseHandler(object):
         url = quote_chinese(build_url(url.strip(), kwargs.pop('params', None)))
         if kwargs.get('data'):
             kwargs['data'] = encode_params(kwargs['data'])
-        if kwargs.get('data'):
             kwargs.setdefault('method', 'POST')
 
         schedule = {}
         for key in (
             'priority', 'retries',
-            'start_time', 'age',
-            'rate',
-        ):
+            ):
             if key in kwargs:
                 schedule[key] = kwargs.pop(key)
         for key in (
@@ -218,7 +163,6 @@ class BaseHandler(object):
                 schedule[key] = kwargs.pop(key)
 
         task['schedule'] = schedule
-        logger.error(task)
         fetch = {}
         for key in (
                 'method',
@@ -227,7 +171,8 @@ class BaseHandler(object):
                 'timeout',
                 'cookies',
                 'allow_redirects',
-                'proxy',
+                'max_redirects',
+                'proxies',
                 'js_run_at',
                 'js_script',
                 'js_viewport_width',
@@ -235,16 +180,15 @@ class BaseHandler(object):
                 'load_images',
                 'fetch_type',
                 'validate_cert',
-                'max_redirects',
         ):
             if key in kwargs:
                 fetch[key] = kwargs.pop(key)
 
-        if kwargs.get('cookie_persistence', True) != False:
+        if kwargs.get('cookie_persistence', True):
             if fetch.get('cookies'):
-                fetch['cookies'] = fetch['cookies'].update(self.curr_conn_cookie)
+                fetch['cookies'].update(self._curr_conn_cookie)
             else:
-                fetch['cookies'] = self.curr_conn_cookie
+                fetch['cookies'] = self._curr_conn_cookie
         task['fetch'] = fetch
 
         process = {}
@@ -262,100 +206,97 @@ class BaseHandler(object):
             task['taskid'] = self.get_taskid(task)
 
         crawl_rate = {}
-        for key in ('request_number', 'time_period', ):
+        for key in ('request_number', 'time_period'):
             if key in kwargs:
                 crawl_rate[key] = kwargs.pop(key)
         if crawl_rate:
+            if not crawl_rate.get('request_number'):
+                raise KeyError('crawl() did not get expected keyword argument: %s' % 'request_number')
             if not crawl_rate.get('time_period'):
                 crawl_rate['time_period'] = 1
-            if not crawl_rate.get('key_name'):
-                crawl_rate['key_name'] = self.project_name
+            crawl_rate['limit_level'] = 'rate_limit: %s' % task['url']
+        elif self.request_number and self.time_period:
+            crawl_rate['limit_level'] = 'rate_limit: %s' % self.project_name
+            crawl_rate.update({
+                'request_number': self.request_number,
+                'time_period': self.time_period
+            })
         task['crawl_rate'] = crawl_rate
 
         if kwargs:
             raise TypeError('crawl() got unexpected keyword argument: %s' % kwargs.keys())
 
-        #logger.info('in_crawl: task %s ' % str(task))
         self._follows.append(task)
 
     def get_taskid(self, task):
         '''Generate taskid by information of task sha1(url) by default, override me'''
         return sha1string(task['url'])
 
-    # apis
     def crawl(self, url, **kwargs):
-        '''
-        params=None,
+        """Constructs and sends a http request.
 
-        method=None,
-        data=None,
-        headers=None,
-        cookies=None,
-        cookie_persistence=True,
-        timeout=None,
-        allow_redirects=True,
-        proxies=None,
+        :param url: URL for the new request.
+        :param method: method for the new request. Defaults to ``GET``.
+        :param params: (optional) Dictionary or bytes to be sent in the query string for the request.
+        :param data: (optional) Dictionary, bytes to send in the body of request.
+        :param headers: (optional) Dictionary of HTTP Headers to send with the request.
+        :param cookies: (optional) Dict to send with the request.
+        :param cookie_persistence: Defaults to True. In this way, the previous request and response's
+            cookies will persist next request for the same website. It's just like 'requests.session'.
+        :type cookie_persistence: bool.
+        :param timeout: (optional) How long to wait for the server to send data
+            before giving up, as a float.
 
-        fetch_type=None,
-        js_run_at=None,
-        js_script=None,
-        js_viewport_width=None,
-        js_viewport_height=None,
-        load_images=None,
+        :type timeout: float or tuple
+        :param allow_redirects: (optional) Boolean. Defaults to True.
+        :type allow_redirects: bool
+        :param max_redirects: The max times for redirects.
+        :param proxies: (optional) proxy server of username:password@hostname:port to use,
+            only http proxy is supported currently.
+        :param fetch_type: set to ``js`` to enable JavaScript fetcher. Defaults to None.
+        :param js_script: JavaScript run before or after page loaded,
+            should been wrapped by a function like ``function() { document.write("Hello World !"); }``.
+        :param js_run_at: run JavaScript specified via js_script at
+            document-start or document-end. defaults to document-end.
+        :param js_viewport_width: set the size of the viewport for the JavaScript fetcher of the layout process.
+        :param js_viewport_height: set the size of the viewport for the JavaScript fetcher of the layout process.
+        :param load_images: load images when JavaScript fetcher enabled. Defaults to False.
+        :param validate_cert: For HTTPS requests, validate the server’s certificate? Defaults to True.
 
-        priority=None, # type: int. The bigger, the higher priority.
-        retries=None,
-        exetime=None,
-        age=None,
-
-        taskid=None,
-
-        callback=None,
-        callback_args=[],
-        callback_kwargs={}
-
-        crawl_limit:
-            request_number
-            time_period
-
-        crawl_at
-        crawl_later
-        crawl_period
-        ----------------------
-        available params:
-
-          url
-          params
-
-          # fetch
-          method
-          data
-          headers
-          timeout
-          allow_redirects
-          cookies
-          cookie_persistence
-          proxy
-
-          # js fetch
-          fetch_type
-          js_run_at
-          js_script
-          js_viewport_width
-          js_viewport_height
-          load_images
-
-          priority
-          retries
-          exetime
-          age
-
-          taskid
-
-          callback
-
-        '''
-
+        :param priority:  The bigger, the higher priority of the request.
+        :type priority: int.
+        :param retries: to do.
+        :param callback: The method to parse the response.
+        :param callback_args: The additional args to the callback.
+        :type priority: list.
+        :param callback_kwargs: The additional kwargs to the callback.
+        :type cakkback_kwargs: dict.
+        :param taskid: unique id to identify the task.Default is the sha1 check code of the URL.
+            It can be overridden by method ``def get_taskid(self, task)``.
+        :param crawl_at: The time to start the rquest. The year, month and day arguments are required.
+            tzinfo may be None.
+            The remaining arguments may be ints or longs, in the following ranges:
+                MINYEAR <= year <= MAXYEAR
+                1 <= month <= 12
+                1 <= day <= number of days in the given month and year
+                0 <= hour < 24
+                0 <= minute < 60
+                0 <= second < 60
+                0 <= microsecond < 1000000
+            Detail in: ttps://docs.python.org/2/library/datetime.html#datetime.datetime
+        :param crawl_later: Starts the request after ``crawl_later`` seconds have passed.
+        :param crawl_period: Schedules the request to be called periodically.
+            The request is called every ``crawl_period`` seconds.
+        :param crawl_limit:
+            This should be a dict Which contain ``request_number`` and ``time_period``.
+            If you don't set ``time_period``, the default is 1.
+            E.g., {
+                   'request_number': 10,
+                   'time_period': 2
+                    }
+                    Which means you can crawl
+        :type crawl_limit: dict.
+        """
         if isinstance(url, six.string_types):
             return self._crawl(url, **kwargs)
         elif hasattr(url, "__iter__"):
@@ -377,19 +318,3 @@ class BaseHandler(object):
             pprint(result)
         if self.__env__.get('result_queue'):
             self.__env__['result_queue'].put((self.task, result))
-
-    def _on_cronjob(self, response, task):
-        if (not response.save
-                or not isinstance(response.save, dict)
-                or 'tick' not in response.save):
-            return
-
-        # When triggered, a '_on_cronjob' task is sent from scheudler with 'tick' in
-        # Response.save. Scheduler may at least send the trigger task every GCD of the
-        # inverval of the cronjobs. The method should check the tick for each cronjob
-        # function to confirm the execute interval.
-        for cronjob in self._cron_jobs:
-            if response.save['tick'] % cronjob.tick != 0:
-                continue
-            function = cronjob.__get__(self, self.__class__)
-            function(response, task)
