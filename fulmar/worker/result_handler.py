@@ -18,7 +18,7 @@ class TaskPutter(object):
         self.newtasks = []
 
     def put(self, tasks=None):
-        self.executor.submit(self.newtask_quue.push, *tasks)
+        self.executor.submit(self.newtask_quue.put, *tasks)
 
 
 class Processor(object):
@@ -61,5 +61,5 @@ class Processor(object):
 
         return follows
 
-    def push_tasks(self, tasks):
+    def put_tasks(self, tasks):
         self.putter.put(tasks)
