@@ -56,7 +56,6 @@ class TestRequestor:
                 'c': 'd',
             },
             'timeout': 60,
-            'save': 'abc',
         },
         'process': {
             'callback': None,
