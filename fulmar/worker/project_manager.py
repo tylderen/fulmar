@@ -57,8 +57,10 @@ class ProjectManager(object):
 
         instance = _class()
         instance.__env__ = env
-        instance.project_name = project['project_name']
-        instance.project_id = project['project_id']
+        if not instance.project_name:
+            instance.project_name = project['project_name']
+        if not instance.project_id:
+            instance.project_id = project['project_id']
         instance.project = project
 
         return {
