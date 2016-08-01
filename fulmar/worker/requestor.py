@@ -139,27 +139,14 @@ class Requestor(object):
         fetch['headers'].update(task_fetch.get('headers', {}))
 
         # Proxy setting
-        proxy_string = None
-        if isinstance(task_fetch.get('proxy'), six.string_types):
-            proxy_string = task_fetch['proxy']
-        elif self.proxy and task_fetch.get('proxy', True):
-            proxy_string = self.proxy
-        if proxy_string:
-            if '://' not in proxy_string:
-                proxy_string = 'http://' + proxy_string
-            proxy_splited = urlsplit(proxy_string)
-            if proxy_splited.username:
-                fetch['proxy_username'] = proxy_splited.username
-                if six.PY2:
-                    fetch['proxy_username'] = fetch['proxy_username'].encode('utf8')
-            if proxy_splited.password:
-                fetch['proxy_password'] = proxy_splited.password
-                if six.PY2:
-                    fetch['proxy_password'] = fetch['proxy_password'].encode('utf8')
-            fetch['proxy_host'] = proxy_splited.hostname.encode('utf8')
-            if six.PY2:
-                fetch['proxy_host'] = fetch['proxy_host'].encode('utf8')
-            fetch['proxy_port'] = proxy_splited.port or 8080
+        if isinstance(task_fetch.get('proxy_host'), six.string_types):
+            fetch['proxy_host'] = task_fetch['proxy_host']
+            if isinstance(task_fetch.get('proxy_port'), six.integer_types):
+                fetch['proxy_port'] = task_fetch['proxy_port']
+            if isinstance(task_fetch.get('proxy_username'), six.string_types):
+                fetch['proxy_username'] = task_fetch['proxy_username']
+            if isinstance(task_fetch.get('proxy_password'), six.string_types):
+                fetch['proxy_password'] = task_fetch['proxy_password']
 
         # Timeout
         if 'timeout' in fetch:
@@ -187,7 +174,9 @@ class Requestor(object):
             session.update(fetch['cookies'])
             del fetch['cookies']
 
+        allow_redirects = task_fetch.get('allow_redirects', True)
         max_redirects = task_fetch.get('max_redirects', 5)
+
         fetch['follow_redirects'] = False
 
         # Make request
@@ -217,7 +206,7 @@ class Requestor(object):
             # Redirect
             elif (response.code in (301, 302, 303, 307)
                     and response.headers.get('Location')
-                    and task_fetch.get('allow_redirects', True)):
+                    and allow_redirects):
                 if max_redirects <= 0:
                     error = tornado.httpclient.HTTPError(
                         599, 'Maximum (%d) redirects followed' % task_fetch.get('max_redirects', 5),
@@ -231,7 +220,7 @@ class Requestor(object):
                 max_redirects -= 1
                 continue
             else:
-                logger.warning("[%d] %s:%s %s ", response.code,
+                logger.error("[%d] %s:%s %s ", response.code,
                                task.get('project_name'), task.get('taskid'),
                                url)
 
@@ -243,14 +232,13 @@ class Requestor(object):
             result['url'] = response.effective_url or url
             result['cookies'] = session.get_dict()
             result['time_cost'] = time.time() - start_time
-
             if response.error:
                 result['error'] = unicode_text(response.error)
 
             raise gen.Return(result)
 
     @gen.coroutine
-    def _phantomjs_request(self, url, task, callback):
+    def _phantomjs_request(self, url, task):
         """Fetch with phantomjs proxy"""
         start_time = time.time()
 
@@ -320,11 +308,11 @@ class Requestor(object):
 
         if result.get('status_code', 200):
             logger.info("[%d] %s:%s %s %.2fs", result['status_code'],
-                        task.get('project'), task.get('taskid'), url, result['time'])
+                        task.get('project'), task.get('taskid'), url, result['time_cost'])
         else:
             logger.error("[%d] %s:%s %s, %r %.2fs", result['status_code'],
                          task.get('project'), task.get('taskid'),
-                         url, result['content'], result['time'])
+                         url, result['content'], result['time_cost'])
 
         raise gen.Return(result)
 
