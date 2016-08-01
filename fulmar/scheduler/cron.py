@@ -29,14 +29,10 @@ class Cron(object):
         crawl_later = schedule.get('crawl_later', None)
         crawl_timestamp = now
         if crawl_at:
-            if isinstance(crawl_at, dict):
-                try:
-                    crawl_datetime = datetime.datetime(*crawl_at)
-                    crawl_timestamp = time.mktime(crawl_datetime.timetuple())
-                except:
-                    pass
-            elif isinstance(crawl_at, (int, float)) and crawl_at > 0: # timestamp
+            if isinstance(crawl_at, (int, float)) and crawl_at > 0: # timestamp
                 crawl_timestamp = crawl_at
+            else:
+                raise TypeError('crawl_at must be timestamp.')
         elif crawl_later:
             crawl_timestamp = now + crawl_later
 
