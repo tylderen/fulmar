@@ -152,8 +152,7 @@ if (system.args.length !== 2) {
           headers: {},
           url: page.url,
           cookies: {},
-          time: (Date.now() - start_time) / 1000,
-          save: fetch.save
+          time_cost: (Date.now() - start_time) / 1000,
         }
       }
 
@@ -195,7 +194,7 @@ if (system.args.length !== 2) {
         headers: headers,
         url: page.url,
         cookies: cookies,
-        time: (Date.now() - start_time) / 1000,
+        time_cost: (Date.now() - start_time) / 1000,
         js_script_result: script_result,
       }
     }

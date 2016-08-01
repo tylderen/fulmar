@@ -40,9 +40,12 @@ class TestBaseHandler:
         assert self.base_handler._follows[0]['fetch']['data'] == '\xe4\xbd\xa0\xe5\xa5\xbd123'
 
         self.base_handler._reset()
-        self.base_handler.crawl('http://www.baidu.com', priority=2, retries=3)
+        self.base_handler.crawl('http://www.baidu.com', timeout=12)
+        assert self.base_handler._follows[0]['fetch']['timeout'] == 12
+
+        self.base_handler._reset()
+        self.base_handler.crawl('http://www.baidu.com', priority=2)
         assert self.base_handler._follows[0]['schedule']['priority'] == 2
-        assert self.base_handler._follows[0]['schedule']['retries'] == 3
 
         self.base_handler._reset()
         self.base_handler.crawl('http://www.baidu.com', crawl_later=3, crawl_period=60)

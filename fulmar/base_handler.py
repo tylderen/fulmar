@@ -150,7 +150,7 @@ class BaseHandler(object):
 
         schedule = {}
         for key in (
-            'priority', 'retries',
+            'priority',
             ):
             if key in kwargs:
                 schedule[key] = kwargs.pop(key)
@@ -170,9 +170,11 @@ class BaseHandler(object):
                 'data',
                 'timeout',
                 'cookies',
-                'allow_redirects',
                 'max_redirects',
-                'proxies',
+                'proxy_host',
+                'proxy_port',
+                'proxy_username',
+                'proxy_password',
                 'js_run_at',
                 'js_script',
                 'js_viewport_width',
@@ -189,6 +191,12 @@ class BaseHandler(object):
                 fetch['cookies'].update(self._curr_conn_cookie)
             else:
                 fetch['cookies'] = self._curr_conn_cookie
+
+        if kwargs.get('allow_redirects'):
+            fetch['allow_redirects'] == kwargs.pop('allow_redirects')
+        else:
+            fetch['allow_redirects'] == True
+
         task['fetch'] = fetch
 
         process = {}
@@ -249,10 +257,17 @@ class BaseHandler(object):
 
         :type timeout: float or tuple
         :param allow_redirects: (optional) Boolean. Defaults to True.
-        :type allow_redirects: bool
+        :type allow_redirects: bool. Defaults to True.
         :param max_redirects: The max times for redirects.
-        :param proxies: (optional) proxy server of username:password@hostname:port to use,
-            only http proxy is supported currently.
+        :param proxy_host: (optional) HTTP proxy hostname.
+            To use proxies, proxy_host and proxy_port must be set; proxy_username and proxy_password are optional.
+        :type proxy_host: string.
+        :param proxy_port: (optional) HTTP proxy port.
+        :type proxy_port: Int.
+        :param proxy_username: (optional) HTTP proxy username.
+        :type proxy_username: string.
+        :param proxy_password: (optional) HTTP proxy password.
+        :type proxy_password: string.
         :param fetch_type: set to ``js`` to enable JavaScript fetcher. Defaults to None.
         :param js_script: JavaScript run before or after page loaded,
             should been wrapped by a function like ``function() { document.write("Hello World !"); }``.
@@ -265,7 +280,6 @@ class BaseHandler(object):
 
         :param priority:  The bigger, the higher priority of the request.
         :type priority: int.
-        :param retries: to do.
         :param callback: The method to parse the response.
         :param callback_args: The additional args to the callback.
         :type priority: list.
@@ -273,29 +287,19 @@ class BaseHandler(object):
         :type cakkback_kwargs: dict.
         :param taskid: unique id to identify the task.Default is the sha1 check code of the URL.
             It can be overridden by method ``def get_taskid(self, task)``.
-        :param crawl_at: The time to start the rquest. The year, month and day arguments are required.
-            tzinfo may be None.
-            The remaining arguments may be ints or longs, in the following ranges:
-                MINYEAR <= year <= MAXYEAR
-                1 <= month <= 12
-                1 <= day <= number of days in the given month and year
-                0 <= hour < 24
-                0 <= minute < 60
-                0 <= second < 60
-                0 <= microsecond < 1000000
-            Detail in: ttps://docs.python.org/2/library/datetime.html#datetime.datetime
+        :param crawl_at: The time to start the rquest. It must be a timestamp.
+        :type crawl_at: Int or Float.
         :param crawl_later: Starts the request after ``crawl_later`` seconds have passed.
         :param crawl_period: Schedules the request to be called periodically.
             The request is called every ``crawl_period`` seconds.
-        :param crawl_limit:
-            This should be a dict Which contain ``request_number`` and ``time_period``.
-            If you don't set ``time_period``, the default is 1.
-            E.g., {
+        :param crawl_rate: This should be a dict Which contain ``request_number`` and ``time_period``.
+            Note that the  ``time_period`` is given in seconds. If you don't set ``time_period``, the default is 1.
+            E.g. {
                    'request_number': 10,
                    'time_period': 2
                     }
-                    Which means you can crawl
-        :type crawl_limit: dict.
+                    Which means you can crawl the url 10 times every 2 seconds at most.
+        :type crawl_rate: dict.
         """
         if isinstance(url, six.string_types):
             return self._crawl(url, **kwargs)

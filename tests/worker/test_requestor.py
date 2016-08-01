@@ -1,6 +1,9 @@
 import pytest
+import os
 import time
 import copy
+import subprocess
+
 from fulmar.worker.response import rebuild_response
 from fulmar.scheduler.projectdb import Projectdb
 
@@ -11,12 +14,41 @@ def http_server(request):
     from fulmar.utils import run_in_subprocess
     httpbin_server = run_in_subprocess(httpbin.app.run, port=55555, passthrough_errors=False)
     def fin():
-        print ("teardown http_server")
         httpbin_server.terminate()
         httpbin_server.join()
     request.addfinalizer(fin)
 
     return httpbin_server
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proxy_server(request):
+
+    proxy_process = subprocess.Popen(['pyproxy', '--username=somebody',
+                                              '--password=pwd', '--port=8888',
+                                              '--debug'], close_fds=True)
+    def fin():
+        proxy_process.terminate()
+        proxy_process.wait()
+    request.addfinalizer(fin)
+    return proxy_process
+
+
+@pytest.fixture(scope="module", autouse=True)
+def phantom_server(request):
+    try:
+        phantomjs = subprocess.Popen(['phantomjs',
+                os.path.join(os.path.dirname(__file__),
+                    '../../fulmar/worker/phantomjs_fetcher.js'),
+                '25555'])
+    except OSError:
+        phantomjs = None
+    def fin():
+        if phantomjs:
+            phantomjs.kill()
+            phantomjs.wait()
+    request.addfinalizer(fin)
+    return phantomjs
 
 
 @pytest.fixture(scope="module")
@@ -37,10 +69,16 @@ def projectdb(redis_conn):
 def requestor(newtask_queue, projectdb):
     from fulmar.worker.requestor import Requestor
     requestor = Requestor(newtask_queue=newtask_queue, projectdb=projectdb)
+    requestor.phantomjs_proxy = '127.0.0.1:25555'
+
     return requestor
 
 
 class TestRequestor:
+    proxy_host = '127.0.0.1'
+    proxy_port = 8888
+    proxy_username = 'somebody'
+    proxy_password = 'pwd'
     default_task = {
         'project_name': 'test_project_name',
         'project_id': 'test_project_id',
@@ -125,5 +163,68 @@ class TestRequestor:
 
         assert response.status_code == 555
 
+    def test_http_no_redirect(self, requestor):
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/redirect/4'
+        task['fetch']['allow_redirects'] = False
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.error == 'HTTP 302: FOUND'
+
+    def test_http_max_redirect(self, requestor):
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/redirect/4'
+        task['fetch']['max_redirects'] = 3
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.error == 'HTTP 599: Maximum (3) redirects followed'
+
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/redirect/4'
+        task['fetch']['max_redirects'] = 5
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.status_code == 200
+
+    def test_http_proxy_auth_failed(self, requestor):
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/get'
+        task['fetch']['proxy_host'] = self.proxy_host
+        task['fetch']['proxy_port'] = self.proxy_port
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.status_code == 403
+
+    def test_http_proxy_auth_ok(self, requestor):
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/get'
+        task['fetch']['proxy_host'] = self.proxy_host
+        task['fetch']['proxy_port'] = self.proxy_port
+        task['fetch']['proxy_username'] = self.proxy_username
+        task['fetch']['proxy_password'] = self.proxy_password
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.status_code == 200
+
     def test__phantomjs_url(self, requestor):
-        pass
+        task = copy.deepcopy(self.default_task)
+        task['url'] = task['url'] + '/status/200'
+        task['fetch']['fetch_type'] = 'js'
+
+        result = requestor.sync_request(task)
+        response = rebuild_response(result)
+
+        assert response.status_code == 200
+        assert response.error == None
+        assert response.isok() == True
+        assert response.js_script_result == None
