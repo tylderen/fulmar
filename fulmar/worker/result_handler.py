@@ -48,7 +48,7 @@ class Processor(object):
             if project_data.get('exception'):
                 logger.error(project_data.get('exception_log'))
             else:
-                logger.info('Sccceed in getting project data')
+                logger.info('Sccceed in getting project data.')
                 ret = project_data['instance'].run_task(
                     project_data['module'], task, response)
                 follows = ret[1]
