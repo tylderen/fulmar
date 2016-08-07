@@ -8,17 +8,35 @@ logger = logging.getLogger(__name__)
 
 class Cron(object):
 
-    @staticmethod
-    def is_cron(task):
+    curr_stopped_project = []
+
+    @classmethod
+    def is_cron(cls, task):
         is_cron = task.get('schedule', {}).get('is_cron')
         if is_cron:
             return True
         return False
 
-    def __init__(self, cron_queue, ready_queue, default_sleep_time=60):
+    @classmethod
+    def is_stopped(cls, task):
+        project_name = task.get('project_name')
+        if project_name in cls.curr_stopped_project:
+            return True
+        return False
+
+    def __init__(self, cron_queue, ready_queue, projectdb, default_sleep_time=60):
         self.cron_queue = cron_queue
         self.ready_queue = ready_queue
+        self.projectdb = projectdb
         self.default_sleep_time = default_sleep_time
+
+    def get_stopped_projects(self):
+        stoped_projects = []
+        projects = self.projectdb.get_all()
+        for project_name, project_data in projects.iteritems():
+            if project_data.get('is_stopped'):
+                stoped_projects.append(project_name)
+        return stoped_projects
 
     def get_crawl_timestamp(self, task):
 
@@ -42,11 +60,13 @@ class Cron(object):
         while True:
             now = self.time()
 
+            Cron.curr_stopped_project = self.get_stopped_projects()
+
             task, crawl_timestamp = self.cron_queue.get()
             if task:
                 try:
-                    later_time = crawl_timestamp - now
 
+                    later_time = crawl_timestamp - now
                     if later_time < self.default_sleep_time:
                         crawl_period = task.get('schedule', {}).get('crawl_period')
                         if isinstance(crawl_period, (int, float)) and crawl_period > 0:
