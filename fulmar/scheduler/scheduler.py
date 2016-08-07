@@ -10,11 +10,11 @@ logger = logging.getLogger('scheduler')
 
 class Scheduler(object):
 
-    def __init__(self, newtask_queue, ready_queue, cron_queue):
+    def __init__(self, newtask_queue, ready_queue, cron_queue, projectdb):
         self._quit = False
         self.newtask_queue = newtask_queue
         self.ready_queue = ready_queue
-        self.cron = Cron(cron_queue, ready_queue)
+        self.cron = Cron(cron_queue, ready_queue, projectdb)
         self.cron_thread = threading.Thread(target=self.cron.run)
         self.cron_thread.setDaemon(True)
 
@@ -26,7 +26,9 @@ class Scheduler(object):
                 task = self.newtask_queue.get()
                 if task is not None:
                     logger.info('Ready task: %s' % str(task))
-                    if Cron.is_cron(task):
+                    if Cron.is_stopped(task):
+                        pass # just throw away the task
+                    elif Cron.is_cron(task):
                         self.cron.put(task)
                     else:
                         self.ready_queue.put(task)
@@ -34,7 +36,7 @@ class Scheduler(object):
                     # logger.info('No ready task. Take a nap.')
                     time.sleep(0.2)
             except KeyboardInterrupt:
-                logger.info('KeyboardInterrupt, bye bye.')
+                logger.info('Keyboard Interrupt, bye bye.')
                 self.stop()
             except Exception as e:
                 logger.error(str(e))
