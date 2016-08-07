@@ -7,13 +7,15 @@ except ImportError:
     from ..utils import connect_redis
     redis_conn = connect_redis()
 
+PROJECT_DB = 'fulmar_projectdb'
+
+
 class Projectdb(object):
     def __init__(self, server, projectdb):
         """
         Parameters:
             server -- redis connection
             projectdb -- fulmar projectdb name
-            project -- project name for this queue (e.g. "%(spider)s:queue")
         """
         self.server = server
         self.projectdb = projectdb
@@ -41,9 +43,16 @@ class Projectdb(object):
             return None
         return self._unpack(project_data)
 
+    def get_all(self):
+        projects = {}
+        projects_data = self.server.hgetall(self.projectdb)
+        for name, data in projects_data.iteritems():
+            projects.update({name: self._unpack(data)})
+        return projects
+
     def set(self, project_name, project_data):
         if not isinstance(project_data, dict):
-            raise TypeError('project_data\'s type must be dict.' )
+            raise TypeError('project_data\'s type must be dict.')
         if project_data.get('project_id') \
            and project_data.get('project_name') \
            and project_data.get('script'):
@@ -60,4 +69,4 @@ class Projectdb(object):
         self.server.delete(self.projectdb)
 
 
-projectdb = Projectdb(redis_conn, 'fulmar_projectdb')
+projectdb = Projectdb(redis_conn, PROJECT_DB)
