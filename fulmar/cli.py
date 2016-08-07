@@ -8,7 +8,6 @@ import logging.config
 
 import click
 import fulmar
-import threading
 from tabulate import tabulate
 from fulmar import utils
 from fulmar.utils import json_dumps
@@ -22,15 +21,15 @@ def load_cls(ctx, param, value):
     return value
 
 
-@click.group(invoke_without_command=True)
+@click.group()
 @click.option('--redis', callback=connect_redis,
-              help="redis address", show_default=True)
+              help="redis address, e.g, 'redis://127.0.0.1:6379/0'.", show_default=True)
 @click.option('--logging-config', default=os.path.join(os.path.dirname(__file__), "logging.conf"),
               help="logging config file for built-in python logging module", show_default=True)
 @click.version_option(version=fulmar.__version__, prog_name=fulmar.__name__)
 @click.pass_context
 def cli(ctx, **kwargs):
-    """A powerful spider system in python."""
+    """A  crawler system."""
     logging.config.fileConfig(kwargs['logging_config'])
     config = {}
     config_filepath = os.path.join(os.path.dirname(__file__), "config.yml")
@@ -67,6 +66,7 @@ def cli(ctx, **kwargs):
     setattr(utils, 'lua_rate_limit',lua_rate_limit)
 
     ctx.obj = utils.ObjectDict(ctx.obj or {})
+    ctx.obj['instance'] = []
     ctx.obj.update(config)
     return ctx
 
@@ -96,29 +96,113 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 def scheduler(ctx, scheduler_cls):
     """Run Scheduler."""
     g = ctx.obj
+    from fulmar.scheduler.projectdb import projectdb
     from fulmar.message_queue import newtask_queue, ready_queue, cron_queue
     Scheduler = load_cls(None, None, scheduler_cls)
 
-    scheduler = Scheduler(newtask_queue, ready_queue, cron_queue)
+    scheduler = Scheduler(newtask_queue, ready_queue, cron_queue, projectdb)
     scheduler.run()
+
+
+@cli.command()
+@click.option('--phantomjs-path', default='phantomjs', help='phantomjs path')
+@click.option('--port', default=25555, help='phantomjs port')
+@click.option('--auto-restart', default=False, help='auto restart phantomjs if crashed')
+@click.argument('args', nargs=-1)
+@click.pass_context
+def phantomjs(ctx, phantomjs_path, port, auto_restart, args):
+    """
+    Run phantomjs if phantomjs is installed.
+    """
+    args = args or ctx.default_map and ctx.default_map.get('args', [])
+
+    import subprocess
+    g = ctx.obj
+    _quit = []
+    phantomjs_fetcher = os.path.join(
+        os.path.dirname(fulmar.__file__), 'worker/phantomjs_fetcher.js')
+    cmd = [phantomjs_path,
+           # this may cause memory leak: https://github.com/ariya/phantomjs/issues/12903
+           #'--load-images=false',
+           '--ssl-protocol=any',
+           '--disk-cache=true'] + list(args or []) + [phantomjs_fetcher, str(port)]
+
+    try:
+        _phantomjs = subprocess.Popen(cmd)
+    except OSError:
+        logging.warning('phantomjs not found, continue running without it.')
+        return None
+
+    if not g.get('phantomjs_proxy'):
+        g['phantomjs_proxy'] = '127.0.0.1:%s' % port
+
+    while True:
+        _phantomjs.wait()
+        if _quit or not auto_restart:
+            break
+        _phantomjs = subprocess.Popen(cmd)
 
 
 @cli.command()
 @click.option('--worker-num', default=1, help='Default worker num')
 @click.pass_context
 def all(ctx, worker_num):
-    """Start scheduler and worker together."""
+    """
+        Start scheduler and worker, also run phantomjs if phantomjs is installed.
+        Suggest just for testing.
+    """
     g = ctx.obj
+    sub_processes = []
     threads = []
-    scheduler_config = g.get('scheduler', {})
-    threads.append(utils.run_in_thread(ctx.invoke, scheduler, **scheduler_config))
+    try:
+        if not g.get('phantomjs_proxy'):
+            phantomjs_config = g.get('phantomjs', {})
+            phantomjs_config.setdefault('auto_restart', True)
+            sub_processes.append(utils.run_in_subprocess(ctx.invoke, phantomjs, **phantomjs_config))
+            time.sleep(2)
+            if sub_processes[-1].is_alive() and not g.get('phantomjs_proxy'):
+                g['phantomjs_proxy'] = '127.0.0.1:%s' % phantomjs_config.get('port', 25555)
 
-    worker_config = g.get('worker', {})
-    threads.append(utils.run_in_thread(ctx.invoke, worker, **worker_config))
-    for i in threads:
-        logging.info(i)
-    logging.info(threading.enumerate())
-    time.sleep(500)
+        scheduler_config = g.get('scheduler', {})
+        threads.append(utils.run_in_thread(ctx.invoke, scheduler, **scheduler_config))
+
+        worker_config = g.get('worker', {})
+        threads.append(utils.run_in_thread(ctx.invoke, worker, **worker_config))
+
+        while threads:
+            for t in threads:
+                if not t.isAlive():
+                  threads.remove(t)
+            time.sleep(0.1)
+
+        for sub_process in sub_processes:
+            sub_process.join()
+
+    except KeyboardInterrupt:
+        logging.info('Keyboard Interrupt. Bye, bye.')
+    finally:
+        for process in sub_processes:
+            process.terminate()
+
+
+@cli.command()
+@click.pass_context
+def show_projects(ctx):
+    """Show projects."""
+    from fulmar.scheduler.projectdb import projectdb
+
+    projects = projectdb.get_all()
+
+    headers = ['project_name', 'updated_time', 'is_stopped']
+    table = []
+    for _, project in projects.iteritems():
+        project_name = project.get('project_name')
+        update_timestamp = project.get('update_time')
+        update_time =time.strftime('%Y-%m-%d %H:%M:%S')
+        is_stopped = 'True' if project.get('is_stopped') else 'False'
+        table.append([project_name, update_time, is_stopped])
+
+    click.echo(tabulate(table, headers, tablefmt="grid", numalign="right"))
 
 
 @cli.command()
@@ -136,10 +220,10 @@ def update_project(ctx, project_file):
 
     project_id = sha1string(raw_code)
     project_name = project_file.split('/')[-1].strip(' .py')
-    data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id}
+    data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id, 'update_time': time.time()}
     projectdb.set(project_name, data)
 
-    logging.info('Successfully update the project "%s".', project_name)
+    click.echo('Successfully update the project "%s".' % project_name)
 
 
 @cli.command()
@@ -149,7 +233,18 @@ def start_project(ctx, project):
     """Start a project."""
     from fulmar.message_queue import newtask_queue
     from fulmar.scheduler.projectdb import projectdb
+
+    if not os.path.exists(project):
+        raise IOError('No such file or directory: "%s".' % project)
+
+    if not os.path.isfile(project):
+        raise IOError('Is not a Python file: "%s".' % project)
+
+    if not project.endswith('.py'):
+        raise TypeError('Not a standard Python file: "%s". Please make sure it is a Python file which ends with ".py".' % project)
+
     project_name = project.split('/')[-1].strip(' .py')
+
     project_data = projectdb.get(project_name)
     if not project_data:
         ctx.invoke(update_project, project_file=project)
@@ -168,15 +263,51 @@ def start_project(ctx, project):
     }
     newtask_queue.put(newtask)
 
-    logging.info('Successfully start the project "%s".', project_name)
+    click.echo('Successfully start the project: "%s".', project_name)
+
+
+@cli.command()
+@click.argument('project_name')
+@click.pass_context
+def stop_project(ctx, project_name):
+    """Stop a project."""
+    from fulmar.scheduler.projectdb import projectdb
+
+    project_name = project_name.split('/')[-1].strip(' .py')
+
+    project_data = projectdb.get(project_name)
+    if not project_data:
+        click.echo('Sorry, can not find project:  "%s".' % project_name)
+        return
+    project_data.update({'is_stopped': True})
+    projectdb.set(project_name, project_data)
+    click.echo('Successfully stop project: "%s".' % project_name)
+
+
+@cli.command()
+@click.argument('project_name')
+@click.pass_context
+def delete_project(ctx, project_name):
+    """Delete a project."""
+    from fulmar.scheduler.projectdb import projectdb
+
+    project_name = project_name.split('/')[-1].strip(' .py')
+
+    project_data = projectdb.get(project_name)
+    if not project_data:
+        click.echo('Sorry, can not find project_name: "%s".' % project_name)
+        return
+
+    projectdb.delete(project_name)
+    click.echo('Successfully delete project: "%s".' % project_name)
 
 
 @cli.command()
 @click.option('--delete', '-d', help='Delete a cron task. Here use taskid, e.g, -d taskid')
-@click.option('--list', '-l', is_flag=True, help='List all of cron tasks so far.')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose mode. Show more information about this crontab.')
 @click.pass_context
-def crontab(ctx, delete, verbose, list):
+def crontab(ctx, delete, verbose):
+    """Crontab infos and operations."""
     from fulmar.message_queue import cron_queue
     from datetime import datetime
     range = cron_queue.range()
@@ -192,7 +323,7 @@ def crontab(ctx, delete, verbose, list):
             click.echo('Failed to delete task: %s. Please make sure the taskid is correct.' % delete)
         return
 
-    headers = ['project', 'task_id', 'url', 'crawl_period', 'next_crawl_time']
+    headers = ['task_id', 'url', 'project', 'crawl_period', 'next_crawl_time']
     table = []
     tasks = []
     if verbose:
@@ -203,7 +334,7 @@ def crontab(ctx, delete, verbose, list):
         for task, time in range:
             time = datetime.fromtimestamp(time)
             next_crawl_time =time.strftime('%Y-%m-%d %H:%M:%S')
-            project = task.get('project_name')
+            project_name = task.get('project_name')
             url = task.get('url')
             taskid = task.get('taskid')
             crawl_period = task.get('schedule',{}).get('crawl_period')
@@ -216,7 +347,7 @@ def crontab(ctx, delete, verbose, list):
             else:
                 crawl_period = str(crawl_period) + ' (seconds)'
 
-            table.append([project, taskid, url, crawl_period, next_crawl_time])
+            table.append([taskid, url, project_name, crawl_period, next_crawl_time])
         click.echo(tabulate(table, headers, tablefmt="grid", numalign="right"))
 
 
