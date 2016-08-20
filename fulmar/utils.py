@@ -9,6 +9,7 @@ import json
 from functools import partial
 
 from six.moves.urllib.parse import urlparse, urlunparse
+from pymongo import MongoClient
 from requests.models import RequestEncodingMixin
 
 encode_params = RequestEncodingMixin._encode_params
@@ -66,14 +67,25 @@ def build_url(url, _params):
     return url
 
 
+def connect_mongodb(url=None):
+    if url is None:
+        return
+
+    parsed = urlparse(url)
+    if parsed.scheme != 'mongodb':
+        raise Exception('Please use MongoDB URI format, e.g., "mongodb://localhost:27017/".')
+
+    return MongoClient(url, connect=False)
+
+
 def connect_redis(url=None):
     if url is None:
         url = 'redis://127.0.0.1:6379/0'
 
     parsed = urlparse(url)
-
     if parsed.scheme != 'redis':
-        raise Exception
+        raise Exception('Please use Redis URI format, e.g., "redis://localhost:6379/0".')
+
     db = parsed.path.lstrip('/').split('/')
     try:
         db = int(db[0])
