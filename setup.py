@@ -25,23 +25,20 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
-readme = 'README.md'
-if os.path.exists('README.rst'):
-    readme = 'README.rst'
+readme = 'README.rst'
 with open(readme) as f:
     long_description = f.read()
 
 with open('requirements.txt') as f:
     requirements = [l for l in f.read().splitlines() if l]
 
-
 setup(
     name='fulmar',
     version='0.0.1',
-    author='russell.guo',
+    author='tylderen',
     packages=find_packages(exclude=['tests']),
-    keywords='spider, framework',
-    description='A Distributed Spider(Web Crawler) System in Python',
+    keywords='crawler, framework',
+    description='A Distributed Web Crawler System in Python',
     long_description=long_description,
     install_requires=requirements,
     include_package_data=True,
