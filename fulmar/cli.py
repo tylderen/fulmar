@@ -76,14 +76,13 @@ def cli(ctx, **kwargs):
 @click.option('--proxy', help="proxy host:port")
 @click.option('--user-agent', help='user agent')
 @click.option('--timeout', default=180, help='default request timeout')
-@click.option('--worker-cls', default='fulmar.worker.Worker', callback=load_cls)
 @click.pass_context
-def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
+def worker(ctx, proxy, user_agent, timeout, poolsize, async=True):
     """Run Worker."""
     from fulmar.message_queue import newtask_queue, ready_queue
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.database import mongo
-    Worker = load_cls(None, None, worker_cls)
+    from fulmar.worker import Worker
     worker = Worker(ready_queue, newtask_queue, mongo,
                     projectdb, poolsize=poolsize, proxy=proxy,
                     async=async, user_agent=user_agent, timeout=timeout)
@@ -91,14 +90,12 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 
 
 @cli.command()
-@click.option('--scheduler-cls', default='fulmar.scheduler.Scheduler', callback=load_cls)
 @click.pass_context
-def scheduler(ctx, scheduler_cls):
+def scheduler(ctx):
     """Run Scheduler."""
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.message_queue import newtask_queue, ready_queue, cron_queue
-
-    Scheduler = load_cls(None, None, scheduler_cls)
+    from scheduler import Scheduler
     scheduler = Scheduler(newtask_queue, ready_queue, cron_queue, projectdb)
     scheduler.run()
 
