@@ -12,8 +12,6 @@ from tabulate import tabulate
 from fulmar import utils
 from fulmar.utils import json_dumps
 
-def connect_redis(ctx, param, value):
-    return utils.connect_redis(value)
 
 def load_cls(ctx, param, value):
     if isinstance(value, six.string_types):
@@ -22,51 +20,53 @@ def load_cls(ctx, param, value):
 
 
 @click.group()
-@click.option('--redis', callback=connect_redis,
-              help="redis address, e.g, 'redis://127.0.0.1:6379/0'.", show_default=True)
+@click.option('--redis', help="redis address, e.g, 'redis://127.0.0.1:6379/0'.")
+@click.option('--mongodb', help="mongodb address, e.g, 'mongodb://localhost:27017/'.")
 @click.option('--logging-config', default=os.path.join(os.path.dirname(__file__), "logging.conf"),
               help="logging config file for built-in python logging module", show_default=True)
+@click.option('--config', '-c', default=os.path.join(os.path.dirname(__file__), "config.yml"),
+              help='a yaml file with default config.', show_default=True)
 @click.version_option(version=fulmar.__version__, prog_name=fulmar.__name__)
 @click.pass_context
 def cli(ctx, **kwargs):
     """A  crawler system."""
     logging.config.fileConfig(kwargs['logging_config'])
     config = {}
-    config_filepath = os.path.join(os.path.dirname(__file__), "config.yml")
-    try:
-        with open(config_filepath, 'r') as f:
-            config = yaml.load(f)
-    except IOError as e:
-        err = 'No default configuration file find.'
-    except Exception as e:
-        logging.error(e)
-    redis_conn = None
+    config_filepath = kwargs['config']
+    if config_filepath:
+        if not os.path.exists(config_filepath):
+            raise IOError('No such file or directory: "%s".' % config_filepath)
+
+        if not os.path.isfile(config_filepath):
+            raise IOError('Is not a file: "%s".' % config_filepath)
+
+        try:
+            with open(config_filepath, 'r') as f:
+                config = yaml.load(f)
+        except Exception as err:
+            raise err
+
     if kwargs.get('redis'):
-        redis_conn = kwargs['redis']
+        redis_conn = utils.connect_redis(kwargs['redis'])
+    elif config.get('redis'):
+        redis_conn = utils.connect_redis(config['redis']['url'])
     else:
-        if config.get('redis'):
-             redis_conn = utils.connect_redis(config['redis']['url'])
-        else:
-            raise Exception('redis in config.yaml wrong!')
-    LUA_RATE_LIMIT_SCRIPT = """
-    local current_requests = redis.call('get', KEYS[1])
-    if not current_requests then
-        redis.call('incr', KEYS[1])
-        redis.call('expire', KEYS[1], ARGV[1])
-        return 0
-    end
-    if tonumber(current_requests) >= tonumber(ARGV[2]) then
-        return 1
-    end
-    redis.call('incr', KEYS[1])
-    return 0
-    """
+        raise Exception('Could not find redis address.')
+
+    if kwargs.get('mongodb'):
+        mongodb_conn = utils.connect_mongodb(kwargs['mongodb'])
+    elif config.get('mongodb'):
+        mongodb_conn = utils.connect_mongodb(config['mongodb']['url'])
+    else:
+        logging.warning('Could not find mongodb address.')
+
+    from fulmar.utils import LUA_RATE_LIMIT_SCRIPT
     lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
     setattr(utils, 'redis_conn', redis_conn)
     setattr(utils, 'lua_rate_limit',lua_rate_limit)
+    setattr(utils, 'mongodb_conn', mongodb_conn)
 
     ctx.obj = utils.ObjectDict(ctx.obj or {})
-    ctx.obj['instance'] = []
     ctx.obj.update(config)
     return ctx
 
@@ -75,18 +75,18 @@ def cli(ctx, **kwargs):
 @click.option('--poolsize', default=300, help="pool size")
 @click.option('--proxy', help="proxy host:port")
 @click.option('--user-agent', help='user agent')
-@click.option('--timeout', help='default fetch timeout')
+@click.option('--timeout', default=180, help='default request timeout')
 @click.option('--worker-cls', default='fulmar.worker.Worker', callback=load_cls)
 @click.pass_context
 def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
     """Run Worker."""
-    g = ctx.obj
     from fulmar.message_queue import newtask_queue, ready_queue
     from fulmar.scheduler.projectdb import projectdb
+    from fulmar.database import mongo
     Worker = load_cls(None, None, worker_cls)
-
-    worker = Worker(ready_queue, newtask_queue, projectdb,
-                    poolsize=poolsize, proxy=proxy, async=async)
+    worker = Worker(ready_queue, newtask_queue, mongo,
+                    projectdb, poolsize=poolsize, proxy=proxy,
+                    async=async, user_agent=user_agent, timeout=timeout)
     worker.run()
 
 
@@ -95,11 +95,10 @@ def worker(ctx, proxy, user_agent, timeout, worker_cls, poolsize, async=True):
 @click.pass_context
 def scheduler(ctx, scheduler_cls):
     """Run Scheduler."""
-    g = ctx.obj
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.message_queue import newtask_queue, ready_queue, cron_queue
-    Scheduler = load_cls(None, None, scheduler_cls)
 
+    Scheduler = load_cls(None, None, scheduler_cls)
     scheduler = Scheduler(newtask_queue, ready_queue, cron_queue, projectdb)
     scheduler.run()
 
@@ -144,9 +143,8 @@ def phantomjs(ctx, phantomjs_path, port, auto_restart, args):
 
 
 @cli.command()
-@click.option('--worker-num', default=1, help='Default worker num')
 @click.pass_context
-def all(ctx, worker_num):
+def all(ctx):
     """
         Start scheduler and worker, also run phantomjs if phantomjs is installed.
         Suggest just for testing.
@@ -179,8 +177,9 @@ def all(ctx, worker_num):
             sub_process.join()
 
     except KeyboardInterrupt:
-        logging.info('Keyboard Interrupt. Bye, bye.')
+        logging.info('Keyboard interrupt. Bye, bye.')
     finally:
+        # Need to kill subprocesses.
         for process in sub_processes:
             process.terminate()
 
@@ -263,7 +262,7 @@ def start_project(ctx, project):
     }
     newtask_queue.put(newtask)
 
-    click.echo('Successfully start the project: "%s".', project_name)
+    click.echo('Successfully start the project, project name: "%s".' % project_name)
 
 
 @cli.command()
@@ -299,7 +298,7 @@ def delete_project(ctx, project_name):
         return
 
     projectdb.delete(project_name)
-    click.echo('Successfully delete project: "%s".' % project_name)
+    click.echo('\nSuccessfully delete project: "%s".\n' % project_name)
 
 
 @cli.command()
@@ -313,14 +312,15 @@ def crontab(ctx, delete, verbose):
     range = cron_queue.range()
 
     if delete:
-        is_ok = False
+        delete_ok = False
         for task, _ in range:
             if task['taskid'] == delete:
-                is_ok = cron_queue.delete_one(task)
-                click.echo('Successfully delete task: %s' % delete)
+                cron_queue.delete_one(task)
+                delete_ok = True
+                click.echo('\nSuccessfully delete task: %s\n.' % delete)
                 break
-        if not is_ok:
-            click.echo('Failed to delete task: %s. Please make sure the taskid is correct.' % delete)
+        if not delete_ok:
+            click.echo('\nFailed to delete task: %s. Please make sure the taskid is correct.\n' % delete)
         return
 
     headers = ['task_id', 'url', 'project', 'crawl_period', 'next_crawl_time']
