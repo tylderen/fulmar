@@ -1,4 +1,6 @@
 # -*- encoding: utf-8 -*-
+# Author: Binux<i@binux.me>
+#         http://binux.me
 
 import imp
 import inspect
@@ -20,7 +22,7 @@ class ProjectManager(object):
     @staticmethod
     def build_module(project, env={}):
         '''Build project script as module'''
-        from fulmar import base_handler
+        from fulmar import base_spider
         assert 'project_name' in project, 'need name of project'
         assert 'script' in project, 'need script of project'
         assert 'project_id' in project, 'need id of project'
@@ -47,13 +49,13 @@ class ProjectManager(object):
         module.logger.addHandler(handler)
 
         if '__handler_cls__' not in module.__dict__:
-            BaseHandler = module.__dict__.get('BaseHandler', base_handler.BaseHandler)
+            BaseSpider = module.__dict__.get('BaseSpider', base_spider.BaseSpider)
             for each in list(six.itervalues(module.__dict__)):
-                if inspect.isclass(each) and each is not BaseHandler \
-                        and issubclass(each, BaseHandler):
+                if inspect.isclass(each) and each is not BaseSpider \
+                        and issubclass(each, BaseSpider):
                     module.__dict__['__handler_cls__'] = each
         _class = module.__dict__.get('__handler_cls__')
-        assert _class is not None, "need BaseHandler in project module"
+        assert _class is not None, "need BaseSpider in project module."
 
         instance = _class()
         instance.__env__ = env

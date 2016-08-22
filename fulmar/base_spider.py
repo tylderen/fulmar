@@ -40,7 +40,7 @@ class BaseSpider(object):
 
         self.request_number = request_number
         self.time_period = time_period
-        self.db_name = db_name or self.project_name
+        self.db_name = db_name
         self.coll_name = coll_name or 'result'
 
         self._curr_conn_cookie = {}
@@ -99,7 +99,7 @@ class BaseSpider(object):
             self.response = None
             self.save = None
 
-        return (results, follows, self.db_name, self.coll_name)
+        return (results, follows, self.db_name or self.project_name, self.coll_name)
 
     def _crawl(self, url, **kwargs):
         """
