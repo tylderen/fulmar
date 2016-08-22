@@ -21,20 +21,22 @@ class Worker(object):
     default_options = {
         'method': 'GET',
         'headers': {},
-        'timeout': 120,
+        'timeout': 180,
     }
     phantomjs_proxy = None
 
     def __init__(self, readytask_queue, newtask_queue,
-                 projectdb, poolsize=300, timeout=120,
-                 proxy=None, async=True, user_agent=None):
+                 resultdb, projectdb, poolsize=300,
+                 timeout=180, proxy=None, async=True,
+                 user_agent=None):
         self.readytask_queue = readytask_queue
         self.ioloop = tornado.ioloop.IOLoop()
 
         self.requestor = Requestor(poolsize=poolsize, timeout=timeout,
                                    proxy=proxy, async=async,
                                    user_agent=user_agent, ioloop=self.ioloop,
-                                   newtask_queue=newtask_queue, projectdb=projectdb)
+                                   newtask_queue=newtask_queue, resultdb=resultdb,
+                                   projectdb=projectdb)
 
     def run(self):
         """Run ioloop"""

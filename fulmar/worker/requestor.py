@@ -36,12 +36,13 @@ class Requestor(object):
     def __init__(self, poolsize=300, timeout=120,
                  proxy=None, async=True,
                  user_agent=None, ioloop=None,
-                 newtask_queue=None, projectdb=None):
+                 newtask_queue=None, resultdb=None,
+                 projectdb=None):
         self.poolsize = poolsize
         self.timeout = timeout
         self.proxy = proxy
         self.async = async
-        self.processor = Processor(newtask_queue, projectdb)
+        self.processor = Processor(newtask_queue, resultdb, projectdb)
         if not user_agent:
             self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
@@ -96,10 +97,15 @@ class Requestor(object):
                 logger.exception(e)
 
         if task.get('process', {}).get('callback'):
-            follows = self.processor.handle_result(task, result)
-            self.add_follows(follows)
-            # put new tasks to newtask_queue
-            self._put_follows()
+            task, results, follows, db_name, coll_name = self.processor.handle_result(task, result)
+
+            if follows:
+                # put new tasks to newtask_queue
+                self.add_follows(follows)
+                self._put_follows()
+
+            if results:
+                self.processor.put_results(results, db_name, coll_name, task)
 
         raise gen.Return(result)
 
