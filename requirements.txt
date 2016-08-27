@@ -1,7 +1,10 @@
+click
 six
 redis
 tornado
 tabulate
 pycurl
 pyyaml
+pymongo
+requests
 msgpack-python

@@ -19,6 +19,7 @@ class ProjectManager(object):
     """
     load projects from projectdb, update project if needed.
     """
+
     @staticmethod
     def build_module(project, env={}):
         '''Build project script as module'''
@@ -37,13 +38,7 @@ class ProjectManager(object):
         # logger inject
         module.log_buffer = []
         module.logging = module.logger = logging.Logger(project['project_name'])
-        '''
-        if env.get('enable_stdout_capture', False):
-            logger.info(env)
-            handler = SaveLogHandler(module.log_buffer)
-            handler.setFormatter(LogFormatter(color=False))
-        else:
-        '''
+
         handler = logging.StreamHandler()
         handler.setFormatter(LogFormatter(color=True))
         module.logger.addHandler(handler)
@@ -51,9 +46,10 @@ class ProjectManager(object):
         if '__handler_cls__' not in module.__dict__:
             BaseSpider = module.__dict__.get('BaseSpider', base_spider.BaseSpider)
             for each in list(six.itervalues(module.__dict__)):
-                if inspect.isclass(each) and each is not BaseSpider \
-                        and issubclass(each, BaseSpider):
+                if (inspect.isclass(each) and each is not BaseSpider \
+                        and issubclass(each, BaseSpider)) or hasattr(each, 'is_handler'):
                     module.__dict__['__handler_cls__'] = each
+
         _class = module.__dict__.get('__handler_cls__')
         assert _class is not None, "need BaseSpider in project module."
 

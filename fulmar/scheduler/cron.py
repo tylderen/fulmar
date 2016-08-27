@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
+
 import time
-import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class Cron(object):
+    """Crontab for Scheduler.
+
+    Put timer tasks to the ready queue. And check projects
+    which are marked with 'is_stopped' periodically.
+    """
 
     curr_stopped_project = []
 
@@ -24,7 +29,7 @@ class Cron(object):
             return True
         return False
 
-    def __init__(self, cron_queue, ready_queue, projectdb, default_sleep_time=60):
+    def __init__(self, cron_queue, ready_queue, projectdb, default_sleep_time=30):
         self.cron_queue = cron_queue
         self.ready_queue = ready_queue
         self.projectdb = projectdb
@@ -39,13 +44,13 @@ class Cron(object):
         return stoped_projects
 
     def get_crawl_timestamp(self, task):
-
-        now = self.time()
-
+        """Get crawl timestamp from task."""
+        now = self.curr_time()
         schedule = task.get('schedule', {})
         crawl_at = schedule.get('crawl_at', None)
         crawl_later = schedule.get('crawl_later', None)
         crawl_timestamp = now
+
         if crawl_at:
             if isinstance(crawl_at, (int, float)) and crawl_at > 0: # timestamp
                 crawl_timestamp = crawl_at
@@ -57,35 +62,46 @@ class Cron(object):
         return crawl_timestamp
 
     def run(self):
+        """The main method for the class."""
         while True:
-            now = self.time()
-
+            now = self.curr_time()
             Cron.curr_stopped_project = self.get_stopped_projects()
 
             task, crawl_timestamp = self.cron_queue.get()
+
             if task:
                 try:
+                    if not self.is_stopped(task):
 
-                    later_time = crawl_timestamp - now
-                    if later_time < self.default_sleep_time:
-                        crawl_period = task.get('schedule', {}).get('crawl_period')
-                        if isinstance(crawl_period, (int, float)) and crawl_period > 0:
-                            crawl_timestamp += crawl_period
+                        later_time = crawl_timestamp - now
+                        if later_time < self.default_sleep_time:
+                            crawl_period = task.get('schedule', {}).get('crawl_period')
+
+                            if isinstance(crawl_period, (int, float)) and crawl_period > 0:
+                                # if task's 'crawl_period' is set, put it back to cron queue.
+                                crawl_timestamp += crawl_period
+                                self.cron_queue.put(task, crawl_timestamp)
+
+                            later_time = max(0, later_time)
+
+                            # Before put the task to reay queue, sleep a certain time
+                            # to make it ready.
+                            time.sleep(later_time)
+
+                            self.ready_queue.put(task)
+                        else:
                             self.cron_queue.put(task, crawl_timestamp)
-
-                        later_time = max(0, later_time)
-                        time.sleep(later_time)
-                        self.ready_queue.put(task)
-                    else:
-                        self.cron_queue.put(task, crawl_timestamp)
-                        time.sleep(self.default_sleep_time)
+                            time.sleep(self.default_sleep_time)
                 except Exception as e:
                     logger.error(e)
+            else:
+                # cron queue is empty, take a nap.
+                time.sleep(2)
 
     def put(self, task, crawl_timestamp=None):
         if not crawl_timestamp:
             craw_timestamp = self.get_crawl_timestamp(task)
         self.cron_queue.put(task, craw_timestamp)
 
-    def time(self):
+    def curr_time(self):
         return time.time()

@@ -6,6 +6,7 @@ import tornado.httputil
 import tornado.ioloop
 
 from .requestor import Requestor
+from ..utils import UUID
 
 try:
     from ..utils import lua_rate_limit
@@ -18,11 +19,7 @@ logger = logging.getLogger('worker')
 
 
 class Worker(object):
-    default_options = {
-        'method': 'GET',
-        'headers': {},
-        'timeout': 180,
-    }
+
     phantomjs_proxy = None
 
     def __init__(self, readytask_queue, newtask_queue,
@@ -39,7 +36,7 @@ class Worker(object):
                                    projectdb=projectdb)
 
     def run(self):
-        """Run ioloop"""
+        """Run tornado ioloop"""
         logger.info("worker starting...")
 
         def queue_loop():
@@ -54,13 +51,14 @@ class Worker(object):
                 if task:
                     crawl_rate = task.get('crawl_rate')
                     if crawl_rate:
-                        limit_level = crawl_rate.get('limit_level')
+                        limit_level = ':'.join([UUID, crawl_rate.get('limit_level')])
                         request_number = crawl_rate.get('request_number')
                         time_period = crawl_rate.get('time_period')
                         if lua_rate_limit(keys=[limit_level], args=[time_period, request_number]):
                             # Request too fast, put the task back to newtask_queue.
-                            self.requestor.add_follows(task)
-                    result = self.requestor.request(task)
+                            self.requestor.put_follows(task)
+                            return
+                    self.requestor.request(task)
             except Exception as e:
                 logger.exception(e)
 
@@ -72,8 +70,7 @@ class Worker(object):
             logger.info('KeyboardInterrupt. Bye bye.')
         finally:
             self.stop()
-
-        logger.info("worker exiting...")
+            logger.info("worker exited.")
 
     def stop(self):
         """Quit worker"""

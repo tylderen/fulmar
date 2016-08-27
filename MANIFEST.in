@@ -1,0 +1,4 @@
+include requirements.txt
+include fulmar/logging.conf
+include fulmar/config.yml
+include fulmar/worker/phantomjs_fetcher.js

@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
-import inspect
+import sys
+import functools
 import logging
 
 import six
@@ -12,21 +13,38 @@ from fulmar.pprint import pprint
 logger = logging.getLogger(__name__)
 
 
-def crawl_rate(request_number=None, time_period=1):
-    def handle_func(func):
-        def inner(*args, **kwargs):
-            local_time_period = time_period
-            if request_number:
-                kwargs.update(time_period=local_time_period, request_number=request_number)
+class HandlerFlag(object):
+
+    def __init__(self, func):
+        self.func = func
+        self.is_handler = True
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+
+class CrawlRate(object):
+
+    def __init__(self, request_number=None, time_period=1):
+        self.request_number = request_number
+        self.time_period = time_period
+
+    def __call__(self, func):
+        @HandlerFlag
+        def wrapped_f(*args, **kwargs):
+            is_handler = True
+            if self.request_number:
+                kwargs.update(time_period=self.time_period, request_number=self.request_number)
             else:
-                raise KeyError('crawl_rate() did not get expected keyword argument: %s.' % 'request_number')
+                raise KeyError('crawl_rate() did not get expected keyword argument: request_number')
             return func(*args, **kwargs)
-        return inner
-    return handle_func
+
+        return wrapped_f
 
 
 class BaseSpider(object):
     """BaseSpider for project scripts."""
+
     project_name = None
     project_id = None
 
@@ -42,7 +60,6 @@ class BaseSpider(object):
         self.time_period = time_period
         self.db_name = db_name
         self.coll_name = coll_name or 'result'
-
         self._curr_conn_cookie = {}
         self._follows = []
 
@@ -68,7 +85,7 @@ class BaseSpider(object):
 
         function = getattr(self, callback)
 
-        # todo: don't handle this error.
+        # TODO: don't handle this error.
         # do not run_func when 304
         if response.status_code == 304 and not getattr(function, '_catch_status_code_error', False):
             return None

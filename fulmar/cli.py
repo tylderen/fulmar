@@ -3,6 +3,7 @@ import os
 import six
 import time
 import yaml
+import datetime
 import logging
 import logging.config
 
@@ -176,7 +177,7 @@ def all(ctx):
     except KeyboardInterrupt:
         logging.info('Keyboard interrupt. Bye, bye.')
     finally:
-        # Need to kill subprocesses.
+        # Need to kill subprocesses: phantomjs.
         for process in sub_processes:
             process.terminate()
 
@@ -189,12 +190,12 @@ def show_projects(ctx):
 
     projects = projectdb.get_all()
 
-    headers = ['project_name', 'updated_time', 'is_stopped']
     table = []
+    headers = ['project_name', 'updated_time', 'is_stopped']
     for _, project in projects.iteritems():
         project_name = project.get('project_name')
         update_timestamp = project.get('update_time')
-        update_time =time.strftime('%Y-%m-%d %H:%M:%S')
+        update_time = datetime.datetime.fromtimestamp(update_timestamp).strftime('%Y-%m-%d %H:%M:%S')
         is_stopped = 'True' if project.get('is_stopped') else 'False'
         table.append([project_name, update_time, is_stopped])
 
@@ -208,7 +209,7 @@ def update_project(ctx, project_file):
     """Update a project."""
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.utils import sha1string
-    # todo: add default dir to put project
+    # TODO: add default dir to put project
     raw_code = ''
     with open(project_file, 'rb') as f:
         for line in f:
@@ -216,7 +217,12 @@ def update_project(ctx, project_file):
 
     project_id = sha1string(raw_code)
     project_name = project_file.split('/')[-1].strip(' .py')
-    data = {'project_name': project_name, 'script': raw_code, 'project_id': project_id, 'update_time': time.time()}
+    data = {
+        'project_name': project_name,
+        'script': raw_code,
+        'project_id': project_id,
+        'update_time': time.time()
+    }
     projectdb.set(project_name, data)
 
     click.echo('Successfully update the project "%s".' % project_name)
@@ -240,21 +246,26 @@ def start_project(ctx, project):
         raise TypeError('Not a standard Python file: "%s". Please make sure it is a Python file which ends with ".py".' % project)
 
     project_name = project.split('/')[-1].strip(' .py')
-
     project_data = projectdb.get(project_name)
+
     if not project_data:
         ctx.invoke(update_project, project_file=project)
         project_data = projectdb.get(project_name)
 
+    if project_data.get('is_stopped'):
+        project_data.update({'is_stopped': False})
+        projectdb.set(project_name, project_data)
+
     newtask = {
         "project_name": project_name,
         'project_id': project_data.get('project_id'),
-        "taskid": project_name + 'on_start',
-        "url": 'first_task' + project,
+        "taskid": project_name + ': on_start',
+        "url": 'first_task: ' + project_name,
         "process": {
             "callback": "on_start",
         },
         "schedule": {
+            "is_cron": True
         },
     }
     newtask_queue.put(newtask)
