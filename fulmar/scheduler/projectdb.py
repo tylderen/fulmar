@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+
 import msgpack
 
 try:
@@ -11,6 +12,7 @@ PROJECT_DB = 'fulmar_projectdb'
 
 
 class Projectdb(object):
+
     def __init__(self, server, projectdb):
         """
         Parameters:
