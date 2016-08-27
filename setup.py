@@ -34,9 +34,18 @@ with open('requirements.txt') as f:
 
 setup(
     name='fulmar',
-    version='0.0.1',
+    version='0.0.2',
     author='tylderen',
+    author_email='tylderen@gmail.com',
+    url='https://github.com/tylderen/fulmar',
     packages=find_packages(exclude=['tests']),
+    package_data={
+        'fulmar': [
+            'logging.conf',
+            'config.yml',
+            'worker/phantomjs_fetcher.js',
+        ],
+    },
     keywords='crawler, framework',
     description='A Distributed Web Crawler System in Python',
     long_description=long_description,
