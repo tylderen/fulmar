@@ -26,6 +26,8 @@ logger = logging.getLogger('requestor')
 
 
 class Requestor(object):
+    """Requestor."""
+
     default_options = {
         'method': 'GET',
         'headers': {},
@@ -43,38 +45,33 @@ class Requestor(object):
         self.proxy = proxy
         self.async = async
         self.processor = Processor(newtask_queue, resultdb, projectdb)
+
         if not user_agent:
             self.user_agent = "fulmar/%s" % 'fulmar.__version__'
 
-        if ioloop == None:
+        if not ioloop:
             self.ioloop = tornado.ioloop.IOLoop()
         else:
             self.ioloop = ioloop
+
         # Bind io_loop to http_client
         if self.async:
             self.http_client = MyCurlAsyncHTTPClient(max_clients=self.poolsize, io_loop=self.ioloop)
         else:
             self.http_client = tornado.httpclient.HTTPClient(MyCurlAsyncHTTPClient, max_clients=self.poolsize)
 
-        self._follows = []
-
-    def add_follows(self, tasks):
-        """Collect new generated tasks"""
-        if not isinstance(tasks, list):
-            tasks = [tasks]
-        self._follows.extend(tasks)
-
-    def _put_follows(self):
-        """Put new generated tasks to newtask_queue"""
-        if self._follows:
-            self.processor.put_tasks(self._follows)
-        self._follows = []
+    def put_follows(self, tasks):
+        """Put new generated tasks to newtask_queue."""
+        if tasks:
+            if not isinstance(tasks, list):
+                tasks = [tasks]
+            self.processor.put_tasks(tasks)
 
     def request(self, task=None):
         """Request a new task"""
         callback = task.get('process', {}).get('callback')
         if callback is None:
-            raise Exception('No callback found !')
+            raise Exception('No callback provided !')
 
         if self.async:
             result = self._async_request(task)
@@ -84,12 +81,14 @@ class Requestor(object):
 
     @gen.coroutine
     def _async_request(self, task):
+        """Async request."""
+
         url = task.get('url')
         if url.startswith('first_task'):
             result = yield gen.maybe_future(self._fake_request(url, task))
         else:
             try:
-                if task.get('fetch', {}).get('fetch_type') in ('js', 'phantomjs'):
+                if task.get('fetch', {}).get('fetch_type') == 'js':
                     result = yield self._phantomjs_request(url, task)
                 else:
                     result = yield self._http_request(url, task)
@@ -97,22 +96,22 @@ class Requestor(object):
                 logger.exception(e)
 
         if task.get('process', {}).get('callback'):
-            task, results, follows, db_name, coll_name = self.processor.handle_result(task, result)
+            results, follows, db_name, coll_name = self.processor.handle_result(task, result)
+
+            if results:
+                # put results to resultdb
+                self.processor.put_results(results, db_name, coll_name, task)
 
             if follows:
                 # put new tasks to newtask_queue
-                self.add_follows(follows)
-                self._put_follows()
-
-            if results:
-                self.processor.put_results(results, db_name, coll_name, task)
+                self.put_follows(follows)
 
         raise gen.Return(result)
 
     def sync_request(self, task):
-        """
-            Synchronization request.
-            Now, it's only for testing.
+        """Synchronization request.
+
+        It's only for testing.
         """
         return self.ioloop.run_sync(functools.partial(self._async_request, task))
 
@@ -125,9 +124,15 @@ class Requestor(object):
             'orig_url': url,
             'url': url,
         }
-        logger.error("[%d] %s:%s %s, %r %.2fs",
-                     result['status_code'], task.get('project'), task.get('taskid'),
-                     url, error, result['time_cost'])
+        logger.error(
+            "[%d] %s:%s %s, %r %.2fs",
+            result['status_code'],
+            task.get('project_name'),
+            task.get('taskid'),
+            url,
+            error,
+            result['time_cost']
+        )
         return result
 
     allowed_options = ['method', 'data', 'timeout', 'cookies', 'validate_cert']
