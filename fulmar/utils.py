@@ -6,6 +6,7 @@ import logging
 import hashlib
 import yaml
 import json
+import uuid
 from functools import partial
 
 from six.moves.urllib.parse import urlparse, urlunparse
@@ -15,7 +16,7 @@ from requests.models import RequestEncodingMixin
 encode_params = RequestEncodingMixin._encode_params
 json_dumps = partial(json.dumps, ensure_ascii=False, sort_keys=True)
 
-
+UUID = str(uuid.uuid1())
 LUA_RATE_LIMIT_SCRIPT = """
     local current_requests = redis.call('get', KEYS[1])
     if not current_requests then
@@ -29,10 +30,6 @@ LUA_RATE_LIMIT_SCRIPT = """
     redis.call('incr', KEYS[1])
     return 0
     """
-
-
-# lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
-
 
 def build_url(url, _params):
     """Build the actual URL to use."""
