@@ -6,6 +6,8 @@
 fulmar
 =======
 
+|docs|
+
 Fulmar is a distributed crawler system. By using non-blocking network I/O,
 Fulmar can handle hundreds of open connections at the same time. You can
 extractthe data you need from websites. In a fast, simple, yet extensible way.
@@ -20,31 +22,21 @@ Quick links
 Code example
 ^^^^^^^^^^^^
 
-Here is a simple example::
-
-   import logging
+.. code-block:: python
 
    from fulmar.base_spider import BaseSpider
 
-   logger = logging.getLogger(__name__)
-
    class Handler(BaseSpider):
+
       def on_start(self):
          self.crawl('http://www.baidu.com/', callback=self.detail_page)
 
-      def detail_page(self, response):
-         try:
-            page_lxml = response.page_lxml
-         except Exception as e:
-            logger.error(str(e))
-
+      def parse_and_save(self, response):
          return {
             "url": response.url,
-            "title": page_lxml.xpath('//title/text()')[0]}
+            "title": response.page_lxml.xpath('//title/text()')[0]}
 
-
-
-You can save above code in a new file called `baidu_spider.py` and run in console::
+You can save above code in a new file called   `baidu_spider.py`   and run command::
 
                   fulmar start_project baidu_spider.py
 
@@ -64,41 +56,19 @@ Installation
     pip install fulmar
 
 Fulmar is listed in `PyPI <http://pypi.python.org/pypi/fulmar>`_ and
-can be installed with ``pip`` or ``easy_install``.  Note that the
-source distribution includes demo applications that are not present
-when Tornado is installed in this way, so you may wish to download a
-copy of the source tarball as well.
+can be installed with ``pip`` or ``easy_install``.
 
-**Manual installation**: Download tarball, then:
-
-.. parsed-literal::
-
-    tar xvzf fulmar-|version|.tar.gz
-    cd fulmar-|version|
-    python setup.py build
-    sudo python setup.py install
-
-The Fulmar source code is `hosted on GitHub
+Fulmar source code is `hosted on GitHub
 <https://github.com/tylderen/fulmar>`_.
 
-**Prerequisites**: Fulmar runs on Python 2.7, and 3.3+
-For Python 2, version 2.7.9 or newer is *strongly*
-recommended for the improved SSL support.
+
 
 Documentation
 -------------
 
-This documentation is also available in `PDF and Epub formats
-<https://readthedocs.org/projects/fulmar/downloads/>`_.
+Please visit  `Fulmar Docs <http://fulmar.readthedocs.io/en/latest/>`_.
 
-.. toctree::
-   :maxdepth: 2
-
-   quick
-
-
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
+.. |docs| image:: https://readthedocs.org/projects/fulmar/badge/?version=latest
+    :alt: Documentation Status
+    :scale: 100%
+    :target: https://fulmar.readthedocs.io/en/latest/?badge=latest
