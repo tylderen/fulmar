@@ -115,8 +115,4 @@ More details you need to know:
 It means you can only send ``requests_number`` requests during ``time_period`` seconds.
 Note that this rate limitation is used for a Worker.
 
-So if you start `fulmar` with `n` workers, you actually send ``requests_number * n`` requests during ``time_period`` seconds.
-
-
-
-Your script is running now!
+So if you start `fulmar` with ``n`` workers, you actually send ``requests_number * n`` requests during ``time_period`` seconds.

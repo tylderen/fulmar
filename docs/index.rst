@@ -26,13 +26,13 @@ Some features you may want to know:
 
 
 Quick links
-^^^^^^^^^^^
+-----------
 
 * `Source (github) <https://github.com/tylderen/fulmar>`_
 * `Wiki <https://github.com/tylderen/fulmar/wiki/Links>`_
 
 Script example
-^^^^^^^^^^^^^^^
+-----------
 
 .. code-block:: python
 
@@ -61,7 +61,7 @@ Finally, start Fulmar::
                   fulmar all
 
 Installation
-^^^^^^^^^^^^
+-----------
 
 
 **Automatic installation**::
@@ -88,7 +88,7 @@ For Python 2, version 2.7.9 or newer is *strongly*
 recommended for the improved SSL support.
 
 Documentation
-^^^^^^^^^^^^
+-----------
 
 
 This documentation is also available in `PDF and Epub formats
