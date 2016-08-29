@@ -27,9 +27,9 @@ Please install PhantomJS if needed: http://phantomjs.org/build.html
 Run command:
 ------------
 
-* `fulmar`
+* ``fulmar``
 
-**Note:**  `fulmar` command is running fulmar in `testing` mode, which running components in threads or subprocesses.
+**Note:**  ``fulmar`` command is running fulmar in `testing` mode, which running components in threads or subprocesses.
 For production environment, please refer to [Deployment](Deployment).
 
 
@@ -78,11 +78,11 @@ In the example:
 
     It get a `Response </apis/Response>`_ object.
     `response.page_lxml </apis/Response/#page_lxml>`_ is a `lxml.html document_fromstring <https://pythonhosted.org/pyquery/>`_ object
-    which has `xpath` API to select elements to be extracted.
+    which has ``xpath`` API to select elements to be extracted.
 
     It return a `dict` object as result.
-    The result will be captured into `resultdb` by default.
-    You can override `on_result(self, result)` method to manage the result yourself.
+    The result will be captured into ``resultdb`` by default.
+    You can override ``on_result(self, result)`` method to manage the result yourself.
 
 
 More details you need to know:
@@ -90,7 +90,7 @@ More details you need to know:
 
 **CrawlRate**
 
-    It is a decorator for the `Handler` class.
+    It is a decorator for the ``Handler`` class.
     It is used for limiting the crawl rate.
 
     You can use it just like:
@@ -112,13 +112,11 @@ More details you need to know:
             "title": response.page_lxml.xpath('//title/text()')[0]}
 
 
-It means you can only send `requests_number` requests during `time_period` seconds.
+It means you can only send ``requests_number`` requests during ``time_period`` seconds.
 Note that this rate limitation is used for a Worker.
 
-So if you start `fulmar` with `n` workers, you actually send `requests_number * n` requests during `time_period` seconds.
+So if you start `fulmar` with `n` workers, you actually send ``requests_number * n`` requests during ``time_period`` seconds.
 
 
-
-![index demo](imgs/index_page.png)
 
 Your script is running now!
