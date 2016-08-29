@@ -1,5 +1,5 @@
-Usage
-==========
+Global opitions
+================
 
 Fulmar is easy to use.
 
