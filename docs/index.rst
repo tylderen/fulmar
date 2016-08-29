@@ -6,11 +6,23 @@
 fulmar
 =======
 
+|docs|
+
 Fulmar is a distributed crawler system.
 
 By using non-blocking network I/O, Fulmar can handle hundreds of open connections at the same time.
+You can extract the data you need from websites.
+In a fast, simple way.
 
-You can extract the data you need from websites. In a fast, simple, yet extensible way.
+Some features you may want to know:
+
+* Write script in Python
+* Use Redis as message queue
+* Use MongoDB as default database at present
+* Support rate limitation of requests for a certain website or url
+* Task crontab, priority
+* Distributed architecture
+* Crawl Javascript pages
 
 
 Quick links
@@ -19,8 +31,8 @@ Quick links
 * `Source (github) <https://github.com/tylderen/fulmar>`_
 * `Wiki <https://github.com/tylderen/fulmar/wiki/Links>`_
 
-Code example
-^^^^^^^^^^^^
+Script example
+^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
@@ -36,7 +48,7 @@ Code example
             "url": response.url,
             "title": response.page_lxml.xpath('//title/text()')[0]}
 
-You can save above code in a new file called   `baidu_spider.py`   and run command::
+You can save above code in a new file called ``baidu_spider.py`` and run command::
 
                   fulmar start_project baidu_spider.py
 
@@ -86,3 +98,11 @@ This documentation is also available in `PDF and Epub formats
    :maxdepth: 2
 
    quick
+   global_opitions
+   commands
+
+
+.. |docs| image:: https://readthedocs.org/projects/fulmar/badge/?version=latest
+    :alt: Documentation Status
+    :scale: 100%
+    :target: https://fulmar.readthedocs.io/en/latest/?badge=latest

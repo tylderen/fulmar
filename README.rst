@@ -10,12 +10,13 @@ fulmar
 
 Fulmar is a distributed crawler system. By using non-blocking network I/O,
 Fulmar can handle hundreds of open connections at the same time. You can
-extractthe data you need from websites. In a fast, simple, yet extensible way.
+extractthe data you need from websites. In a fast, simple way.
 
 
 Quick links
 ^^^^^^^^^^^
 
+* `Documentation <http://fulmar.readthedocs.io/en/latest/>`_
 * `Source (github) <https://github.com/tylderen/fulmar>`_
 * `Wiki <https://github.com/tylderen/fulmar/wiki/Links>`_
 
