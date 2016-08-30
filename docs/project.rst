@@ -21,7 +21,7 @@ start_project
             "title": response.page_lxml.xpath('//title/text()')[0]}
 
 
-You can save above code in a new file called   `baidu_spider.py`   and run command in a new console::
+You can save above code in a new file called   ``baidu_spider.py``   and run command in a new console::
 
                   fulmar start_project baidu_spider.py
 
@@ -50,7 +50,7 @@ you will get::
                   Successfully stop project: "baidu_spider".
 
 Stop a project. It means any tasks whose project name is ``baidu_spider``
-will be stop immediately. At the same time, any new tasks in ``crontab``
+will be stop immediately. At the same time, any new tasks in ``fulmar crontab``
 will not run.
 
 
