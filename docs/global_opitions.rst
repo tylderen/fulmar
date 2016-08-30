@@ -1,4 +1,4 @@
-Global opitions
+Opitions
 ================
 
 Fulmar is easy to use.
@@ -6,7 +6,7 @@ Fulmar is easy to use.
 **Note:**  `Redis` is necessary, so make sure you have installed it.
 
 **--help**
-
+-----------
 
 You can get ``help``, just run:
 
@@ -46,7 +46,7 @@ You will see:
 
 
 **--config**
-
+------------
 
 Config file is a YAML file with config values for global options or subcommands.
 Fulmar has a default config file, the content is:
@@ -69,14 +69,16 @@ You can write your own config file, and use it just like:
 
 
 **--redis**
-
+-----------
 Redis address.
 
 **--mongodb**
+-------------
 
 MongoDB address.
 
 **--phantomjs-proxy**
+----------------------
 
 phantomjs proxy ip:port.
 If you set it, it means you have already run phantomjs.
@@ -84,11 +86,13 @@ So fulmar will not try to run a new phantomjs,
 instead just use this one.
 
 **--logging-config**
+--------------------
 
 Log config file. Fulmar use `logging <https://docs.python.org/2/library/logging.html>`_. If you want to change
 the default log behavior, you can write you own log file,
 reference: `configuration-file-format <https://docs.python.org/2/library/logging.config.html#configuration-file-format>`_
 
 **--version**
+-------------
 
 Show fulmar version.

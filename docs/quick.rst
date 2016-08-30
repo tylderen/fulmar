@@ -24,12 +24,12 @@ Please install PhantomJS if needed: http://phantomjs.org/build.html
 **Note:**  `PhantomJS` will be enabled only if it is excutable in the `PATH` or in the System Environment.
 
 
-Run command:
+Run
 ------------
 
-* ``fulmar``
+* ``fulmar all``
 
-**Note:**  ``fulmar`` command is running fulmar in `testing` mode, which running components in threads or subprocesses.
+**Note:**  ``fulmar`` command is running fulmar all in one, which running components in threads or subprocesses.
 For production environment, please refer to [Deployment](Deployment).
 
 
@@ -86,7 +86,7 @@ In the example:
 
 
 More details you need to know:
-^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **CrawlRate**
 

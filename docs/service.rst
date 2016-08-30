@@ -8,11 +8,8 @@ Fulmar mainly has three parts, scheduler, worker and phantomjs.
 You can start them all in one, or run them separately.
 
 
-Subcommands
------------
-
 all
-^^^^^^^^^^
+-----
 
 Run fulmar all in one.
 Start scheduler and worker.
@@ -20,18 +17,18 @@ If phantomjs is installed and global opitions ``phantomjs-proxy`` isn't provided
 phantomjs will get started too.
 
 phantomjs
-^^^^^^^^^^^^^^^^
+---------
 
 Run phantomjs when phantomjs is installed and global opitions
 ``phantomjs-proxy`` isn't provided.
 
 scheduler
-^^^^^^^^^^^^^^^^
+----------
 
 Run Scheduler. Note that you should only start one scheduler.
 
 worker
-^^^^^^^^^^^^^
+-------
 
 Run worker.
 
