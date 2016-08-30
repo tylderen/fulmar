@@ -3,6 +3,11 @@ Global opitions
 
 Fulmar is easy to use.
 
+**Note:**  `Redis` is necessary, so make sure you have installed it.
+
+**--help**
+
+
 You can get ``help``, just run:
 
 ``fulmar --help``
@@ -20,6 +25,7 @@ You will see:
                             /fulmar/fulmar/config.yml]
      --redis TEXT           redis address, e.g, 'redis://127.0.0.1:6379/0'.
      --mongodb TEXT         mongodb address, e.g, 'mongodb://localhost:27017/'.
+     --phantomjs-proxy TEXT phantomjs proxy ip:port.
      --logging-config TEXT  logging config file for built-in python logging
                             module  [default: /fulmar/fulmar/logging.conf]
 
@@ -59,7 +65,8 @@ Fulmar has a default config file, the content is:
 If you run fulmar without any paramtets or config file, fulmar will use this default configuration.
 You can write your own config file, and use it just like:
 
-``fulmar --config=your-config-file``
+``fulmar --config=your-config-file all``
+
 
 **--redis**
 
@@ -69,10 +76,17 @@ Redis address.
 
 MongoDB address.
 
+**--phantomjs-proxy**
+
+phantomjs proxy ip:port.
+If you set it, it means you have already run phantomjs.
+So fulmar will not try to run a new phantomjs,
+instead just use this one.
+
 **--logging-config**
 
 Log config file. Fulmar use `logging <https://docs.python.org/2/library/logging.html>`_. If you want to change
-the default log behavior, you can write you own log file ,
+the default log behavior, you can write you own log file,
 reference: `configuration-file-format <https://docs.python.org/2/library/logging.config.html#configuration-file-format>`_
 
 **--version**
