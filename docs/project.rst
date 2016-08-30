@@ -63,7 +63,7 @@ Run command::
 
                   fulmar show_projects
 
-you will get::
+you will get:
 
 .. image:: images/show_projects.png
 
