@@ -99,7 +99,8 @@ This documentation is also available in `PDF and Epub formats
 
    quick
    global_opitions
-   commands
+   service
+   project
 
 
 .. |docs| image:: https://readthedocs.org/projects/fulmar/badge/?version=latest
