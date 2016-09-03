@@ -18,7 +18,7 @@ Quick links
 
 * `Documentation <http://fulmar.readthedocs.io/en/latest/>`_
 * `Source (github) <https://github.com/tylderen/fulmar>`_
-* `Wiki <https://github.com/tylderen/fulmar/wiki/Links>`_
+* `Wiki <https://github.com/tylderen/fulmar/wiki>`_
 
 Code example
 ^^^^^^^^^^^^
