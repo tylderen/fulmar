@@ -29,9 +29,9 @@ you will get::
 
                   Successfully start the project, project name: `baidu_spider`.
 
-Now we create a new project called ``baidu_spider`` and start it.
+We created a new project called ``baidu_spider`` and started it.
 
-As you can see, project name is from the script file name. So you should kee the file
+As you can see, project name is from the script file name. So you should keep the file
 name unique.
 
 **Note:** In fact ``start_project`` just put a new task into new task queue.
@@ -43,7 +43,7 @@ stop_project
 
 Run command::
 
-                  fulmar stop_project baidu_spider.py
+                  fulmar stop_project baidu_spider
 
 you will get::
 
