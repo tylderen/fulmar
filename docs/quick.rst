@@ -29,7 +29,7 @@ Run
 
 * ``fulmar all``
 
-**Note:**  ``fulmar`` command is running fulmar all in one, which running components in threads or subprocesses.
+**Note:**  ``fulmar all`` command is running fulmar all in one, which running components in threads or subprocesses.
 For production environment, please refer to [Deployment](Deployment).
 
 
@@ -43,7 +43,7 @@ Your First Spider
    class Handler(BaseSpider):
 
       def on_start(self):
-         self.crawl('http://www.baidu.com/', callback=self.detail_page)
+         self.crawl('http://www.baidu.com/', callback=self.parse_and_save)
 
       def parse_and_save(self, response):
          return {
@@ -104,7 +104,7 @@ More details you need to know:
    class Handler(BaseSpider):
 
       def on_start(self):
-         self.crawl('http://www.baidu.com/', callback=self.detail_page)
+         self.crawl('http://www.baidu.com/', callback=self.parse_and_save)
 
       def parse_and_save(self, response):
          return {

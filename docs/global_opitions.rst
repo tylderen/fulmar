@@ -71,6 +71,10 @@ You can write your own config file, and use it just like:
 **--redis**
 -----------
 Redis address.
+You can run fulmar just like:
+
+``fulmar --redis=redis://127.0.0.1:6379/0 all``
+
 
 **--mongodb**
 -------------

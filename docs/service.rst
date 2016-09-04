@@ -32,7 +32,7 @@ worker
 
 Run worker.
 
-You can get ``worker help``, just run:
+You can get help, just run:
 
 ``fulmar worker --help``
 

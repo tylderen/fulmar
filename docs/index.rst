@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 fulmar
-=======
+======
 
 |docs|
 
@@ -17,10 +17,11 @@ In a fast, simple way.
 Some features you may want to know:
 
 * Write script in Python
+* Task crontab, priority
+* Cookie persistence
 * Use Redis as message queue
 * Use MongoDB as default database at present
 * Support rate limitation of requests for a certain website or url
-* Task crontab, priority
 * Distributed architecture
 * Crawl Javascript pages
 
@@ -29,10 +30,10 @@ Quick links
 -----------
 
 * `Source (github) <https://github.com/tylderen/fulmar>`_
-* `Wiki <https://github.com/tylderen/fulmar/wiki/Links>`_
+* `Wiki <https://github.com/tylderen/fulmar/wiki>`_
 
 Script example
------------
+--------------
 
 .. code-block:: python
 
@@ -61,7 +62,7 @@ Finally, start Fulmar::
                   fulmar all
 
 Installation
------------
+------------
 
 
 **Automatic installation**::
@@ -88,7 +89,7 @@ For Python 2, version 2.7.9 or newer is *strongly*
 recommended for the improved SSL support.
 
 Documentation
------------
+-------------
 
 
 This documentation is also available in `PDF and Epub formats
@@ -101,7 +102,8 @@ This documentation is also available in `PDF and Epub formats
    global_opitions
    service
    project
-
+   crontab
+   api
 
 .. |docs| image:: https://readthedocs.org/projects/fulmar/badge/?version=latest
     :alt: Documentation Status
