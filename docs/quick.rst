@@ -8,15 +8,11 @@ Installation
 * `pip install fulmar`
 
 
-Please install `Redis <http://redis.io/download>`_.
-
-**Note:**  `Redis` is necessary, so make sure you have installed it.
+**Note:**  `Redis <http://redis.io/download>`_ is necessary, so make sure you have installed it.
 
 
-Please install MongoDB if needed: https://www.mongodb.com/download-center?jmp=docs#community
-
-**Note:**  `MongoDB` will be enabled only if it is installed and you have provided its address.
-If not, the result will not be saved.
+**Note:**  If you want to save the data you extracted from websites, please
+install `MongoDB <https://www.mongodb.com/download-center?jmp=docs#community>`_.
 
 
 Please install PhantomJS if needed: http://phantomjs.org/build.html

@@ -21,7 +21,7 @@ Some features you may want to know:
 * Cookie persistence
 * Use Redis as message queue
 * Use MongoDB as default database at present
-* Support rate limitation of requests for a certain website or url
+* Support rate limitation of requests for a certain website
 * Distributed architecture
 * Crawl Javascript pages
 
