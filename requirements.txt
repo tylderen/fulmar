@@ -1,3 +1,4 @@
+chardet
 click
 futures
 msgpack-python
