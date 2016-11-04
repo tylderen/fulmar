@@ -10,3 +10,4 @@ requests
 six
 tabulate
 tornado
+pycurl
