@@ -1,6 +1,7 @@
 chardet
 click
 futures
+lxml
 msgpack-python
 pymongo
 pyyaml
