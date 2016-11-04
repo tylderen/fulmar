@@ -7,6 +7,7 @@ fulmar
 =======
 
 |docs|
+|ci|
 
 Fulmar is a distributed crawler system. By using non-blocking network I/O,
 Fulmar can handle hundreds of open connections at the same time. You can
@@ -73,3 +74,6 @@ Please visit  `Fulmar Docs <http://fulmar.readthedocs.io/en/latest/>`_.
     :alt: Documentation Status
     :scale: 100%
     :target: https://fulmar.readthedocs.io/en/latest/?badge=latest
+
+.. |ci| image:: https://travis-ci.org/tylderen/fulmar.svg?branch=master
+    :target: https://travis-ci.org/tylderen/fulmar
