@@ -1,2 +1,5 @@
 -r requirements.txt
+httpbin
 pyproxy
+pytest
+
