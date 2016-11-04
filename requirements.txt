@@ -1,9 +1,10 @@
 click
-six
-redis
-tornado
-tabulate
-pyyaml
-pymongo
-requests
+futures
 msgpack-python
+pymongo
+pyyaml
+redis
+requests
+six
+tabulate
+tornado
