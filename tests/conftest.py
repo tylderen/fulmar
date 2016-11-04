@@ -1,7 +1,6 @@
 import pytest
-import httpbin
 
-from fulmar.utils import connect_redis, run_in_subprocess
+from fulmar.utils import connect_redis
 
 
 @pytest.fixture(scope="module")
