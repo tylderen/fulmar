@@ -23,6 +23,7 @@ def load_cls(ctx, param, value):
 @click.group()
 @click.option('--redis', help="redis address, e.g, 'redis://127.0.0.1:6379/0'.")
 @click.option('--mongodb', help="mongodb address, e.g, 'mongodb://localhost:27017/'.")
+@click.option('--phantomjs-proxy', help="phantomjs proxy ip:port.")
 @click.option('--logging-config', default=os.path.join(os.path.dirname(__file__), "logging.conf"),
               help="logging config file for built-in python logging module", show_default=True)
 @click.option('--config', '-c', default=os.path.join(os.path.dirname(__file__), "config.yml"),
@@ -30,17 +31,15 @@ def load_cls(ctx, param, value):
 @click.version_option(version=fulmar.__version__, prog_name=fulmar.__name__)
 @click.pass_context
 def cli(ctx, **kwargs):
-    """A  crawler system."""
+    """A crawler system."""
     logging.config.fileConfig(kwargs['logging_config'])
     config = {}
     config_filepath = kwargs['config']
     if config_filepath:
         if not os.path.exists(config_filepath):
             raise IOError('No such file or directory: "%s".' % config_filepath)
-
         if not os.path.isfile(config_filepath):
             raise IOError('Is not a file: "%s".' % config_filepath)
-
         try:
             with open(config_filepath, 'r') as f:
                 config = yaml.load(f)
@@ -54,15 +53,17 @@ def cli(ctx, **kwargs):
     else:
         raise Exception('Could not find redis address.')
 
+    mongodb_conn = None
     if kwargs.get('mongodb'):
         mongodb_conn = utils.connect_mongodb(kwargs['mongodb'])
     elif config.get('mongodb'):
         mongodb_conn = utils.connect_mongodb(config['mongodb']['url'])
     else:
-        logging.warning('Could not find mongodb address.')
+        logging.warning('Could not find mongodb address. No results will be saved.')
 
     from fulmar.utils import LUA_RATE_LIMIT_SCRIPT
     lua_rate_limit = redis_conn.register_script(LUA_RATE_LIMIT_SCRIPT)
+
     setattr(utils, 'redis_conn', redis_conn)
     setattr(utils, 'lua_rate_limit',lua_rate_limit)
     setattr(utils, 'mongodb_conn', mongodb_conn)
@@ -74,19 +75,22 @@ def cli(ctx, **kwargs):
 
 @cli.command()
 @click.option('--poolsize', default=300, help="pool size")
-@click.option('--proxy', help="proxy host:port")
 @click.option('--user-agent', help='user agent')
 @click.option('--timeout', default=180, help='default request timeout')
 @click.pass_context
-def worker(ctx, proxy, user_agent, timeout, poolsize, async=True):
+def worker(ctx, user_agent, timeout, poolsize, async=True):
     """Run Worker."""
     from fulmar.message_queue import newtask_queue, ready_queue
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.database import mongo
     from fulmar.worker import Worker
+
+    g = ctx.obj
+    Worker.phantomjs_proxy = g.phantomjs_proxy
     worker = Worker(ready_queue, newtask_queue, mongo,
-                    projectdb, poolsize=poolsize, proxy=proxy,
-                    async=async, user_agent=user_agent, timeout=timeout)
+                    projectdb, poolsize=poolsize,
+                    async=async, user_agent=user_agent,
+                    timeout=timeout)
     worker.run()
 
 
@@ -127,7 +131,7 @@ def phantomjs(ctx, phantomjs_path, port, auto_restart, args):
     try:
         _phantomjs = subprocess.Popen(cmd)
     except OSError:
-        logging.warning('phantomjs not found, continue running without it.')
+        logging.warning('phantomjs not found.')
         return None
 
     if not g.get('phantomjs_proxy'):
@@ -145,7 +149,6 @@ def phantomjs(ctx, phantomjs_path, port, auto_restart, args):
 def all(ctx):
     """
         Start scheduler and worker, also run phantomjs if phantomjs is installed.
-        Suggest just for testing.
     """
     g = ctx.obj
     sub_processes = []
@@ -209,7 +212,7 @@ def update_project(ctx, project_file):
     """Update a project."""
     from fulmar.scheduler.projectdb import projectdb
     from fulmar.utils import sha1string
-    # TODO: add default dir to put project
+    # TODO: add default dir to put projects
     raw_code = ''
     with open(project_file, 'rb') as f:
         for line in f:
@@ -270,7 +273,7 @@ def start_project(ctx, project):
     }
     newtask_queue.put(newtask)
 
-    click.echo('Successfully start the project, project name: "%s".' % project_name)
+    click.echo('Successfully start project: "%s".' % project_name)
 
 
 @cli.command()
@@ -302,7 +305,7 @@ def delete_project(ctx, project_name):
 
     project_data = projectdb.get(project_name)
     if not project_data:
-        click.echo('Sorry, can not find project_name: "%s".' % project_name)
+        click.echo('Sorry, can not find project: "%s".' % project_name)
         return
 
     projectdb.delete(project_name)

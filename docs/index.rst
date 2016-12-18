@@ -42,7 +42,7 @@ Script example
    class Handler(BaseSpider):
 
       def on_start(self):
-         self.crawl('http://www.baidu.com/', callback=self.detail_page)
+         self.crawl('http://www.baidu.com/', callback=self.parse_and_save)
 
       def parse_and_save(self, response):
          return {
