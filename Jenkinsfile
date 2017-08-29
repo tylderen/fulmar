@@ -1,13 +1,13 @@
 #!groovy 
 pipeline {
+    def scmVars = ''
     agent {
         label 'master'
     }
     stages {
         stage('Build') {            
-            steps {                
-                def scmVars = checkout scm
-                def commitHash = scmVars.GIT_COMMIT
+            steps { 
+                scmVars = checkout scm
                 echo scmVars
                 echo 'Building'            
                 echo 'Building'            
